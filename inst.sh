@@ -9,15 +9,21 @@ cont() {
 command -v cargo \
 	|| { cont "No cargo/rust. Install?" \
 		&& curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh ;\
-		echo "logout, login and run again" ;\
+		echo "Logout, login and run again" ;\
 		exit 0;}
 # Build pueue:
 pushd pueue
-	cargo build --release --locked || { echo "FAIL" ; exit 1;}
+	cargo build --release --locked && echo "Build success!" || { echo "Build failed" ; exit 1;}
 popd
 # Install pueue and pueued, add bash-completions:
-sudo install -m 755 target/release/pueue target/release/pueued /usr/bin \
-	&& sudo pueue completions bash /usr/share/bash-completion/completions
+cont "Install to /usr/bin/ and add bash-completions to /usr/share/bash-completions/completions/?" \
+	&& { sudo install -m 755 target/release/pueue target/release/pueued /usr/bin \
+	&& sudo pueue completions bash /usr/share/bash-completion/completions \
+	&& echo "Done! If you want additional shell completions, run \"pueue completions <shell> <target-path>\"";}
 # Enable service, start with "systemctl start --user pueued.service":
-sudo cp utils/pueued.service /etc/systemd/user/ && systemctl enable --user pueued.service
-echo "Start service with: \"systemctl start --user pueued.service\""
+cont "Copy service to /etc/systemd/user and enable+(re)start service?" \
+	&& { sudo cp utils/pueued.service /etc/systemd/user/ \
+		&& systemctl enable --user pueued.service \
+		&& systemctl restart --user pueued.service \
+		&& echo "Success!" || echo "FAIL!";} \
+	|| echo "Start service with: \"systemctl start --user pueued.service\""
