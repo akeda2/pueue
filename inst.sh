@@ -27,3 +27,5 @@ cont "Copy service to /etc/systemd/user and enable+(re)start service?" \
 		&& systemctl restart --user pueued.service \
 		&& echo "Success!" || echo "FAIL!";} \
 	|| echo "Start service with: \"systemctl start --user pueued.service\""
+# Enable linger for user:
+cont "Enable linger for user?" && { loginctl enable-linger && echo "Success!" || echo "FAIL!";}
