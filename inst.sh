@@ -16,16 +16,16 @@ pushd pueue
 	cargo build --release --locked && echo "Build success!" || { echo "Build failed" ; exit 1;}
 popd
 # Install pueue and pueued, add bash-completions:
-cont "Install to /usr/bin/ and add bash-completions to /usr/share/bash-completions/completions/?" \
+cont "(re-)Install to /usr/bin/ and (re)add bash-completions to /usr/share/bash-completions/completions/?" \
 	&& { sudo install -m 755 target/release/pueue target/release/pueued /usr/bin \
 	&& sudo pueue completions bash /usr/share/bash-completion/completions \
 	&& echo "Done! If you want additional shell completions, run \"pueue completions <shell> <target-path>\"";}
 # Enable service, start with "systemctl start --user pueued.service":
-cont "Copy service to /etc/systemd/user and enable+(re)start service?" \
+cont "(re-)Copy service to /etc/systemd/user and enable+(re)start service?" \
 	&& { sudo cp utils/pueued.service /etc/systemd/user/ \
 		&& systemctl enable --user pueued.service \
 		&& systemctl restart --user pueued.service \
-		&& echo "Success!" || echo "FAIL!";} \
+		&& echo "Service (re)start - success!" || echo "FAIL!";} \
 	|| echo "Start service with: \"systemctl start --user pueued.service\""
 # Enable linger for user:
-cont "Enable linger for user?" && { loginctl enable-linger && echo "Success!" || echo "FAIL!";}
+cont "(re-)loginctl enable-linger for user?" && { loginctl enable-linger && echo "loginctl enable-linger - success!" || echo "FAIL!";}
