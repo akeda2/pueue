@@ -101,7 +101,7 @@ pub async fn restart(
     // If the tasks should be edited, edit them in one go.
     if edit {
         let mut editable_tasks: Vec<EditableTask> = tasks.iter().map(EditableTask::from).collect();
-        edit_tasks(settings, &mut editable_tasks)?;
+        editable_tasks = edit_tasks(settings, editable_tasks)?;
 
         // Now merge the edited properties back into the tasks.
         // We simply zip the task and editable task vectors, as we know that they have the same
@@ -143,7 +143,6 @@ pub async fn restart(
             dependencies: Vec::new(),
             priority: Some(task.priority),
             label: task.label,
-            print_task_id: false,
         };
 
         // Send the cloned task to the daemon and abort on any failure messages.
@@ -165,7 +164,7 @@ pub async fn restart(
         println!("Restarted tasks: {:?}", filtered_tasks.matching_ids);
     }
     if !filtered_tasks.non_matching_ids.is_empty() {
-        println!(
+        eprintln!(
             "Couldn't restart tasks: {:?}",
             filtered_tasks.non_matching_ids
         );
