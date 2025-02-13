@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
-use anyhow::{Context, Result};
-
+use color_eyre::{eyre::WrapErr, Result};
 use pueue_lib::settings::Settings;
 
 /// From 0.15.0 on, we aim to have full backward compatibility.
@@ -24,7 +23,7 @@ fn test_restore_from_old_state() -> Result<()> {
 
     // Open v0.15.0 file and ensure the settings file can be read.
     let (_settings, config_found) = Settings::read(&Some(old_settings_path))
-        .context("Failed to read old config with defaults:")?;
+        .wrap_err("Failed to read old config with defaults:")?;
 
     assert!(config_found);
 

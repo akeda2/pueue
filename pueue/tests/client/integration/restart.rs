@@ -1,11 +1,9 @@
 use std::collections::HashMap;
 
-use anyhow::Result;
 use assert_matches::assert_matches;
-
 use pueue_lib::task::{Task, TaskResult, TaskStatus};
 
-use crate::client::helper::*;
+use crate::{client::helper::*, internal_prelude::*};
 
 /// Test that restarting a task while editing its command work as expected.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

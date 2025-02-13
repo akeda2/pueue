@@ -1,12 +1,8 @@
-use anyhow::Result;
 use pretty_assertions::assert_eq;
+use pueue_lib::{network::message::*, state::GroupStatus, task::*};
 use rstest::rstest;
 
-use pueue_lib::network::message::*;
-use pueue_lib::state::GroupStatus;
-use pueue_lib::task::*;
-
-use crate::helper::*;
+use crate::{helper::*, internal_prelude::*};
 
 /// Test if killing running tasks works as intended.
 ///
@@ -66,7 +62,7 @@ async fn test_kill_tasks_with_pause(
     }
 
     // Send the kill message
-    send_message(shared, kill_message).await?;
+    send_request(shared, kill_message).await?;
 
     // Make sure all tasks get killed
     for id in 0..3 {
@@ -145,7 +141,7 @@ async fn test_kill_tasks_without_pause(#[case] kill_message: KillMessage) -> Res
     add_group_with_slots(shared, "testgroup", 1).await?;
 
     // Send the kill message
-    send_message(shared, kill_message).await?;
+    send_request(shared, kill_message).await?;
 
     // Make sure all tasks get killed
     for id in 0..3 {

@@ -1,18 +1,23 @@
-use std::collections::{HashMap, HashSet};
-use std::time::Duration;
+use std::{
+    collections::{HashMap, HashSet},
+    time::Duration,
+};
 
-use anyhow::Result;
 use chrono::Local;
 use crossterm::style::{Attribute, Color};
-use pueue_lib::network::message::TaskSelection;
-use pueue_lib::state::State;
+use pueue_lib::{
+    network::message::TaskSelection,
+    state::State,
+    task::{Task, TaskResult, TaskStatus},
+};
 use strum::{Display, EnumString};
 use tokio::time::sleep;
 
-use pueue_lib::network::protocol::GenericStream;
-use pueue_lib::task::{Task, TaskResult, TaskStatus};
-
-use crate::client::{commands::get_state, display::OutputStyle};
+use super::selection_from_params;
+use crate::{
+    client::{client::Client, commands::get_state, style::OutputStyle},
+    internal_prelude::*,
+};
 
 /// The `wait` subcommand can wait for these specific stati.
 #[derive(Default, Debug, Clone, PartialEq, Display, EnumString)]
@@ -38,12 +43,15 @@ pub enum WaitTargetStatus {
 /// By default, this will output status changes of tasks to `stdout`.
 /// Pass `quiet == true` to suppress any logging.
 pub async fn wait(
-    stream: &mut GenericStream,
-    style: &OutputStyle,
-    selection: TaskSelection,
+    client: &mut Client,
+    task_ids: Vec<usize>,
+    group: Option<String>,
+    all: bool,
     quiet: bool,
-    target_status: &Option<WaitTargetStatus>,
+    target_status: Option<WaitTargetStatus>,
 ) -> Result<()> {
+    let selection = selection_from_params(all, group, task_ids);
+
     let mut first_run = true;
     // Create a list of tracked tasks.
     // This way we can track any status changes and if any new tasks are added.
@@ -54,11 +62,11 @@ pub async fn wait(
     // Wait for either a provided target status or the default (`Done`).
     let target_status = target_status.clone().unwrap_or_default();
     loop {
-        let state = get_state(stream).await?;
+        let state = get_state(client).await?;
         let tasks = get_tasks(&state, &selection);
 
         if tasks.is_empty() {
-            println!("No tasks found for selection {selection:?}");
+            eprintln!("No tasks found for selection {selection:?}");
             return Ok(());
         }
 
@@ -77,7 +85,7 @@ pub async fn wait(
                 watched_tasks.insert(task.id, task.status.clone());
 
                 if !quiet {
-                    log_new_task(task, style, first_run);
+                    log_new_task(task, &client.style, first_run);
                 }
 
                 continue;
@@ -91,7 +99,7 @@ pub async fn wait(
             // Update the (previous) task status and log any changes
             watched_tasks.insert(task.id, task.status.clone());
             if !quiet {
-                log_status_change(previous_status, task, style);
+                log_status_change(previous_status, task, &client.style);
             }
         }
 

@@ -1,10 +1,11 @@
 use std::collections::BTreeMap;
 
-use anyhow::{Context, Result};
-use pueue_lib::network::message::*;
-use pueue_lib::state::{Group, GroupStatus};
+use pueue_lib::{
+    network::message::*,
+    state::{Group, GroupStatus},
+};
 
-use crate::client::helper::*;
+use crate::{client::helper::*, internal_prelude::*};
 
 /// Test that adding a group and getting the group overview works.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -19,7 +20,7 @@ async fn default() -> Result<()> {
     // Get the group status output
     let output = run_client_command(shared, &["group"])?;
 
-    assert_snapshot_matches_stdout("group__default", output.stdout)?;
+    assert_snapshot_matches_output("group__default", output.stdout)?;
 
     Ok(())
 }
@@ -39,7 +40,7 @@ async fn colored() -> Result<()> {
         tasks: TaskSelection::Group(PUEUE_DEFAULT_GROUP.into()),
         wait: true,
     };
-    send_message(shared, message)
+    send_request(shared, message)
         .await
         .context("Failed to send message")?;
 
@@ -48,7 +49,7 @@ async fn colored() -> Result<()> {
     // Get the group status output
     let output = run_client_command(shared, &["--color", "always", "group"])?;
 
-    assert_snapshot_matches_stdout("group__colored", output.stdout)?;
+    assert_snapshot_matches_output("group__colored", output.stdout)?;
 
     Ok(())
 }

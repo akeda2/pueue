@@ -1,8 +1,6 @@
-use anyhow::{Context, Result};
-
 use pueue_lib::{state::State, task::Task};
 
-use crate::client::helper::*;
+use crate::{client::helper::*, internal_prelude::*};
 
 /// Test that the normal status command works as expected.
 /// Calling `pueue` without any subcommand is equivalent of using `status`.
@@ -29,7 +27,7 @@ async fn full() -> Result<()> {
     let output = run_status_without_path(shared, &[]).await?;
 
     let context = get_task_context(&daemon.settings).await?;
-    assert_template_matches("status__full", output.stdout, context)?;
+    assert_template_matches("status__full", output, context)?;
 
     Ok(())
 }
@@ -47,7 +45,7 @@ async fn full() -> Result<()> {
 //    let output = run_status_without_path(shared, &["--color", "always"]).await?;
 //
 //    let context = get_task_context(&daemon.settings).await?;
-//    assert_stdout_matches("status__colored", output.stdout, context)?;
+//    assert_stdout_matches("status__colored", output, context)?;
 //
 //    Ok(())
 //}
@@ -73,7 +71,7 @@ async fn single_group() -> Result<()> {
 
     // The output should only show the first task
     let context = get_task_context(&daemon.settings).await?;
-    assert_template_matches("status__single_group", output.stdout, context)?;
+    assert_template_matches("status__single_group", output, context)?;
 
     Ok(())
 }
@@ -100,7 +98,7 @@ async fn multiple_groups() -> Result<()> {
 
     // The output should show multiple groups
     let context = get_task_context(&daemon.settings).await?;
-    assert_template_matches("status__multiple_groups", output.stdout, context)?;
+    assert_template_matches("status__multiple_groups", output, context)?;
 
     Ok(())
 }

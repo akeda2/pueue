@@ -1,10 +1,8 @@
-use anyhow::Result;
 use assert_matches::assert_matches;
 use chrono::Local;
-
 use pueue_lib::{network::message::TaskSelection, task::*};
 
-use crate::helper::*;
+use crate::{helper::*, internal_prelude::*};
 
 /// Test if adding a normal task works as intended.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -49,7 +47,7 @@ async fn test_stashed_add() -> Result<()> {
     // Tell the daemon to add a task in stashed state.
     let mut message = create_add_message(shared, "sleep 60");
     message.stashed = true;
-    assert_success(send_message(shared, message).await?);
+    assert_success(send_request(shared, message).await?);
 
     // Make sure the task is actually stashed.
     assert_task_condition(shared, 0, Task::is_stashed, "The task should be stashed.").await?;

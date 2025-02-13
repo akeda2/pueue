@@ -1,15 +1,9 @@
 use std::path::PathBuf;
 
-use anyhow::{bail, Result};
 use assert_matches::assert_matches;
-use test_log::test;
+use pueue_lib::{network::message::*, settings::Shared, state::GroupStatus, task::*};
 
-use pueue_lib::network::message::*;
-use pueue_lib::settings::Shared;
-use pueue_lib::state::GroupStatus;
-use pueue_lib::task::*;
-
-use crate::helper::*;
+use crate::{helper::*, internal_prelude::*};
 
 async fn create_edited_task(shared: &Shared) -> Result<Vec<EditableTask>> {
     // Add a task
@@ -23,8 +17,8 @@ async fn create_edited_task(shared: &Shared) -> Result<Vec<EditableTask>> {
     );
 
     // Send a request to edit that task
-    let response = send_message(shared, Message::EditRequest(vec![0])).await?;
-    if let Message::EditResponse(payload) = response {
+    let response = send_request(shared, Request::EditRequest(vec![0])).await?;
+    if let Response::Edit(payload) = response {
         Ok(payload)
     } else {
         bail!("Didn't receive EditResponse after requesting edit.")
@@ -32,7 +26,7 @@ async fn create_edited_task(shared: &Shared) -> Result<Vec<EditableTask>> {
 }
 
 /// Test if adding a normal task works as intended.
-#[test(tokio::test(flavor = "multi_thread", worker_threads = 2))]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_edit_flow() -> Result<()> {
     let daemon = daemon().await?;
     let shared = &daemon.settings.shared;
@@ -69,7 +63,7 @@ async fn test_edit_flow() -> Result<()> {
     editable_task.priority = 99;
 
     // Send the final message of the protocol and actually change the task.
-    let response = send_message(shared, Message::Edit(vec![editable_task])).await?;
+    let response = send_request(shared, Request::Edit(vec![editable_task])).await?;
     assert_success(response);
 
     // Make sure the task has been changed and enqueued.

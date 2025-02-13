@@ -1,17 +1,23 @@
-use std::convert::TryFrom;
-use std::fs::{set_permissions, Permissions};
-use std::os::unix::fs::PermissionsExt;
+use std::{
+    convert::TryFrom,
+    fs::{set_permissions, Permissions},
+    os::unix::fs::PermissionsExt,
+};
 
 use async_trait::async_trait;
-use log::info;
 use rustls::pki_types::ServerName;
-use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::net::{TcpListener, TcpStream, UnixListener, UnixSocket, UnixStream};
+use tokio::{
+    io::{AsyncRead, AsyncWrite},
+    net::{TcpListener, TcpStream, UnixListener, UnixSocket, UnixStream},
+};
 use tokio_rustls::TlsAcceptor;
 
-use crate::error::Error;
-use crate::network::tls::{get_tls_connector, get_tls_listener};
-use crate::settings::Shared;
+use crate::{
+    error::Error,
+    internal_prelude::*,
+    network::tls::{get_tls_connector, get_tls_listener},
+    settings::Shared,
+};
 
 /// Unix specific cleanup handling when getting a SIGINT/SIGTERM.
 pub fn socket_cleanup(settings: &Shared) -> Result<(), std::io::Error> {

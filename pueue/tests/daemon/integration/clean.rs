@@ -1,7 +1,6 @@
-use anyhow::Result;
 use pueue_lib::{network::message::*, task::Task};
 
-use crate::helper::*;
+use crate::{helper::*, internal_prelude::*};
 
 /// Ensure that clean only removes finished tasks
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -21,7 +20,7 @@ async fn test_normal_clean() -> Result<()> {
         successful_only: false,
         group: None,
     };
-    send_message(shared, clean_message).await?;
+    send_request(shared, clean_message).await?;
 
     // Assert that task 0 and 1 have both been removed
     let state = get_state(shared).await?;
@@ -49,7 +48,7 @@ async fn test_successful_only_clean() -> Result<()> {
         successful_only: true,
         group: None,
     };
-    send_message(shared, clean_message).await?;
+    send_request(shared, clean_message).await?;
 
     // Assert that task 0 is still there, as it failed.
     let state = get_state(shared).await?;
@@ -82,7 +81,7 @@ async fn test_clean_in_selected_group() -> Result<()> {
         successful_only: false,
         group: Some("other".to_string()),
     };
-    send_message(shared, clean_message).await?;
+    send_request(shared, clean_message).await?;
 
     // Assert that task 0 and 1 are still there
     let state = get_state(shared).await?;
@@ -120,7 +119,7 @@ async fn test_clean_successful_only_in_selected_group() -> Result<()> {
         successful_only: true,
         group: Some("other".to_string()),
     };
-    send_message(shared, clean_message).await?;
+    send_request(shared, clean_message).await?;
 
     let state = get_state(shared).await?;
     // group default

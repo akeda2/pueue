@@ -1,15 +1,17 @@
 use std::path::PathBuf;
 
-use anyhow::{bail, Context, Result};
 use clap::{CommandFactory, Parser};
 use clap_complete::{generate, generate_to, shells};
-use log::warn;
-use simplelog::{Config, ConfigBuilder, LevelFilter, SimpleLogger, TermLogger, TerminalMode};
-
+use color_eyre::{
+    eyre::{bail, WrapErr},
+    Result,
+};
+use pueue::client::{
+    cli::{CliArguments, Shell, SubCommand},
+    client::Client,
+    handle_command,
+};
 use pueue_lib::settings::Settings;
-
-use pueue::client::cli::{CliArguments, Shell, SubCommand};
-use pueue::client::client::Client;
 
 /// This is the main entry point of the client.
 ///
@@ -24,6 +26,10 @@ async fn main() -> Result<()> {
     // Parse commandline options.
     let opt = CliArguments::parse();
 
+    // Init the logger and set the verbosity level depending on the `-v` flags.
+    pueue::tracing::install_tracing(opt.verbose)?;
+    color_eyre::install()?;
+
     // In case the user requested the generation of shell completion file, create it and exit.
     if let Some(SubCommand::Completions {
         shell,
@@ -33,39 +39,9 @@ async fn main() -> Result<()> {
         return create_shell_completion_file(shell, output_directory);
     }
 
-    // Init the logger and set the verbosity level depending on the `-v` flags.
-    let level = match opt.verbose {
-        0 => LevelFilter::Warn,
-        1 => LevelFilter::Info,
-        2 => LevelFilter::Debug,
-        _ => LevelFilter::Trace,
-    };
-
-    // Try to initialize the logger with the timezone set to the Local time of the machine.
-    let mut builder = ConfigBuilder::new();
-    let logger_config = match builder.set_time_offset_to_local() {
-        Err(_) => {
-            warn!("Failed to determine the local time of this machine. Fallback to UTC.");
-            Config::default()
-        }
-        Ok(builder) => builder.build(),
-    };
-
-    // Init a terminal logger. If this fails for some reason, try fallback to a SimpleLogger
-    if TermLogger::init(
-        level,
-        logger_config.clone(),
-        TerminalMode::Stderr,
-        simplelog::ColorChoice::Auto,
-    )
-    .is_err()
-    {
-        SimpleLogger::init(level, logger_config).unwrap();
-    }
-
     // Try to read settings from the configuration file.
     let (mut settings, config_found) =
-        Settings::read(&opt.config).context("Failed to read configuration.")?;
+        Settings::read(&opt.config).wrap_err("Failed to read configuration.")?;
 
     // Load any requested profile.
     if let Some(profile) = &opt.profile {
@@ -78,11 +54,28 @@ async fn main() -> Result<()> {
         bail!("Couldn't find a configuration file. Did you start the daemon yet?");
     }
 
+    // Determine the subcommand that has been called by the user.
+    // If no subcommand is given, we default to the `status` subcommand without any arguments.
+    let subcommand = opt.cmd.unwrap_or(SubCommand::Status {
+        json: false,
+        group: None,
+        query: Vec::new(),
+    });
+
+    // Only show version incompatibility warnings if we aren't supposed to output json.
+    let show_version_warning = match subcommand {
+        SubCommand::Status { json, .. } => !json,
+        SubCommand::Log { json, .. } => !json,
+        SubCommand::Group { json, .. } => !json,
+        _ => true,
+    };
+
     // Create client to talk with the daemon and connect.
-    let mut client = Client::new(settings, opt)
+    let mut client = Client::new(settings, show_version_warning, &opt.color)
         .await
         .context("Failed to initialize client.")?;
-    client.start().await?;
+
+    handle_command(&mut client, subcommand).await?;
 
     Ok(())
 }

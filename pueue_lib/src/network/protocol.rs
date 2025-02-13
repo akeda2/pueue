@@ -1,30 +1,55 @@
 use std::io::Cursor;
 
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-use log::debug;
-use serde_cbor::de::from_slice;
-use serde_cbor::ser::to_vec;
+use serde::{de::DeserializeOwned, Serialize};
+use serde_cbor::{de::from_slice, ser::to_vec};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
-use crate::error::Error;
-use crate::network::message::*;
 
 // Reexport all stream/socket related stuff for convenience purposes
 pub use super::socket::*;
+use crate::{
+    error::Error,
+    internal_prelude::*,
+    network::message::{request::Request, response::Response},
+};
 
 // We choose a packet size of 1280 to be on the safe site regarding IPv6 MTU.
 pub const PACKET_SIZE: usize = 1280;
 
+/// Convenience wrapper around `send_message` to directly send [`Request`]s.
+pub async fn send_request<T>(message: T, stream: &mut GenericStream) -> Result<(), Error>
+where
+    T: Into<Request>,
+    T: Serialize + std::fmt::Debug,
+{
+    send_message::<_, Request>(message, stream).await
+}
+
+/// Convenience wrapper around `send_message` to directly send [`Response`]s.
+pub async fn send_response<T>(message: T, stream: &mut GenericStream) -> Result<(), Error>
+where
+    T: Into<Response>,
+    T: Serialize + std::fmt::Debug,
+{
+    send_message::<_, Response>(message, stream).await
+}
+
 /// Convenience wrapper around send_bytes.
 /// Deserialize a message and feed the bytes into send_bytes.
-pub async fn send_message<T>(message: T, stream: &mut GenericStream) -> Result<(), Error>
+///
+/// This function is designed to be used with the inner values of the `Request`
+/// or `Response` enums.
+/// If there's no inner variant, you might need to anotate the type:
+/// `send_message::<_, Request>(Request::Status, &mut stream)`
+pub async fn send_message<O, T>(message: O, stream: &mut GenericStream) -> Result<(), Error>
 where
-    T: Into<Message>,
+    O: Into<T>,
+    T: Serialize + std::fmt::Debug,
 {
-    let message: Message = message.into();
+    let message: T = message.into();
     debug!("Sending message: {message:#?}",);
     // Prepare command for transfer and determine message byte size
-    let payload = to_vec(&message).map_err(|err| Error::MessageDeserialization(err.to_string()))?;
+    let payload = to_vec(&message).map_err(|err| Error::MessageSerialization(err.to_string()))?;
 
     send_bytes(&payload, stream).await
 }
@@ -64,8 +89,8 @@ pub async fn send_bytes(payload: &[u8], stream: &mut GenericStream) -> Result<()
 /// Receive a byte stream. \
 /// This is part of the basic protocol beneath all communication. \
 ///
-/// 1. First of, the client sends a u64 as a 4byte vector in BigEndian mode, which specifies
-///    the length of the payload we're going to receive.
+/// 1. First of, the client sends a u64 as a 4byte vector in BigEndian mode, which specifies the
+///    length of the payload we're going to receive.
 /// 2. Receive chunks of [PACKET_SIZE] bytes until we finished all expected bytes.
 pub async fn receive_bytes(stream: &mut GenericStream) -> Result<Vec<u8>, Error> {
     // Receive the header with the overall message size
@@ -113,16 +138,36 @@ pub async fn receive_bytes(stream: &mut GenericStream) -> Result<Vec<u8>, Error>
     Ok(payload_bytes)
 }
 
+/// Convenience wrapper that wraps `receive_message` for [`Request`]s
+pub async fn receive_request(stream: &mut GenericStream) -> Result<Request, Error> {
+    receive_message::<Request>(stream).await
+}
+
+/// Convenience wrapper that wraps `receive_message` for [`Response`]s
+pub async fn receive_response(stream: &mut GenericStream) -> Result<Response, Error> {
+    receive_message::<Response>(stream).await
+}
+
 /// Convenience wrapper that receives a message and converts it into a Message.
-pub async fn receive_message(stream: &mut GenericStream) -> Result<Message, Error> {
+pub async fn receive_message<T: DeserializeOwned + std::fmt::Debug>(
+    stream: &mut GenericStream,
+) -> Result<T, Error> {
     let payload_bytes = receive_bytes(stream).await?;
     if payload_bytes.is_empty() {
         return Err(Error::EmptyPayload);
     }
 
     // Deserialize the message.
-    let message: Message =
-        from_slice(&payload_bytes).map_err(|err| Error::MessageDeserialization(err.to_string()))?;
+    let message: T = from_slice(&payload_bytes).map_err(|err| {
+        // In the case of an error, try to deserialize it to a generic cbor Value.
+        // That way we know whether the payload was corrupted or maybe just unexpected due to
+        // version differences.
+        if let Ok(value) = from_slice::<serde_cbor::Value>(&payload_bytes) {
+            Error::UnexpectedPayload(value)
+        } else {
+            Error::MessageDeserialization(err.to_string())
+        }
+    })?;
     debug!("Received message: {message:#?}");
 
     Ok(message)
@@ -134,11 +179,16 @@ mod test {
 
     use async_trait::async_trait;
     use pretty_assertions::assert_eq;
-    use tokio::net::{TcpListener, TcpStream};
-    use tokio::task;
+    use tokio::{
+        net::{TcpListener, TcpStream},
+        task,
+    };
 
     use super::*;
-    use crate::network::socket::Stream as PueueStream;
+    use crate::network::{
+        message::request::{Request, SendMessage},
+        socket::Stream as PueueStream,
+    };
 
     // Implement generic Listener/Stream traits, so we can test stuff on normal TCP
     #[async_trait]
@@ -157,8 +207,12 @@ mod test {
 
         // The message that should be sent
         let payload = "a".repeat(100_000);
-        let message = create_success_message(payload);
-        let original_bytes = to_vec(&message).expect("Failed to serialize message.");
+        let request: Request = SendMessage {
+            task_id: 0,
+            input: payload,
+        }
+        .into();
+        let original_bytes = to_vec(&request).expect("Failed to serialize message.");
 
         let listener: GenericListener = Box::new(listener);
 
@@ -170,17 +224,17 @@ mod test {
             let mut stream = listener.accept().await.unwrap();
             let message_bytes = receive_bytes(&mut stream).await.unwrap();
 
-            let message: Message = from_slice(&message_bytes).unwrap();
+            let message: Request = from_slice(&message_bytes).unwrap();
 
-            send_message(message, &mut stream).await.unwrap();
+            send_request(message, &mut stream).await.unwrap();
         });
 
         let mut client: GenericStream = Box::new(TcpStream::connect(&addr).await?);
 
         // Create a client that sends a message and instantly receives it
-        send_message(message, &mut client).await?;
+        send_request(request, &mut client).await?;
         let response_bytes = receive_bytes(&mut client).await?;
-        let _message: Message = from_slice(&response_bytes)
+        let _message: Request = from_slice(&response_bytes)
             .map_err(|err| Error::MessageDeserialization(err.to_string()))?;
 
         assert_eq!(response_bytes, original_bytes);
@@ -204,10 +258,8 @@ mod test {
         task::spawn(async move {
             let mut stream = listener.accept().await.unwrap();
 
-            send_message(create_success_message("message_a"), &mut stream)
-                .await
-                .unwrap();
-            send_message(create_success_message("message_b"), &mut stream)
+            send_request(Request::Status, &mut stream).await.unwrap();
+            send_request(Request::Remove(vec![0, 2, 3]), &mut stream)
                 .await
                 .unwrap();
         });
@@ -221,8 +273,8 @@ mod test {
         let message_a = receive_message(&mut client).await.expect("First message");
         let message_b = receive_message(&mut client).await.expect("Second message");
 
-        assert_eq!(Message::Success("message_a".to_string()), message_a);
-        assert_eq!(Message::Success("message_b".to_string()), message_b);
+        assert_eq!(Request::Status, message_a);
+        assert_eq!(Request::Remove(vec![0, 2, 3]), message_b);
 
         Ok(())
     }

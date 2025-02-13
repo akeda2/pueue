@@ -1,20 +1,19 @@
 use std::collections::HashMap;
 
-use anyhow::{Context, Result};
-use pueue_lib::task::TaskStatus;
+use pueue_lib::{settings::EditMode, task::TaskStatus};
 
-use crate::client::helper::*;
+use crate::{client::helper::*, internal_prelude::*};
 
 /// Test that editing a task without any flags only updates the command.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn edit_task_default() -> Result<()> {
+async fn edit_task_directory() -> Result<()> {
     let daemon = daemon().await?;
     let shared = &daemon.settings.shared;
 
     // Create a stashed message which we'll edit later on.
     let mut message = create_add_message(shared, "this is a test");
     message.stashed = true;
-    send_message(shared, message)
+    send_request(shared, message)
         .await
         .context("Failed to to add stashed task.")?;
 
@@ -48,7 +47,7 @@ async fn edit_all_task_properties() -> Result<()> {
     // Create a stashed message which we'll edit later on.
     let mut message = create_add_message(shared, "this is a test");
     message.stashed = true;
-    send_message(shared, message)
+    send_request(shared, message)
         .await
         .context("Failed to to add stashed task.")?;
 
@@ -84,7 +83,7 @@ async fn edit_delete_label() -> Result<()> {
     let mut message = create_add_message(shared, "this is a test");
     message.stashed = true;
     message.label = Some("Testlabel".to_owned());
-    send_message(shared, message)
+    send_request(shared, message)
         .await
         .context("Failed to to add stashed task.")?;
 
@@ -101,7 +100,8 @@ async fn edit_delete_label() -> Result<()> {
     Ok(())
 }
 
-/// Ensure that updating the priority in the editor results in the modification of the task's priority.
+/// Ensure that updating the priority in the editor results in the modification of the task's
+/// priority.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn edit_change_priority() -> Result<()> {
     let daemon = daemon().await?;
@@ -111,7 +111,7 @@ async fn edit_change_priority() -> Result<()> {
     let mut message = create_add_message(shared, "this is a test");
     message.stashed = true;
     message.priority = Some(0);
-    send_message(shared, message)
+    send_request(shared, message)
         .await
         .context("Failed to to add stashed task.")?;
 
@@ -138,7 +138,7 @@ async fn fail_to_edit_task() -> Result<()> {
     // Create a stashed message which we'll edit later on.
     let mut message = create_add_message(shared, "this is a test");
     message.stashed = true;
-    send_message(shared, message)
+    send_request(shared, message)
         .await
         .context("Failed to to add stashed task.")?;
 
@@ -156,6 +156,44 @@ async fn fail_to_edit_task() -> Result<()> {
     let task = state.tasks.get(&0).unwrap();
     assert_eq!(task.command, "this is a test");
     assert_eq!(task.status, TaskStatus::Stashed { enqueue_at: None });
+
+    Ok(())
+}
+
+/// Test that editing a task without any flags only updates the command.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn edit_task_toml() -> Result<()> {
+    // Overwrite the edit mode to toml.
+    let (mut settings, tempdir) = daemon_base_setup()?;
+    settings.client.edit_mode = EditMode::Toml;
+    settings.save(&Some(tempdir.path().join("pueue.yml")))?;
+    let daemon = daemon_with_settings(settings, tempdir).await?;
+    let shared = &daemon.settings.shared;
+
+    // Create a stashed message which we'll edit later on.
+    let mut message = create_add_message(shared, "this is a test");
+    message.stashed = true;
+    send_request(shared, message)
+        .await
+        .context("Failed to to add stashed task.")?;
+
+    // Update the task's command by piping a string to the temporary file.
+    let mut envs = HashMap::new();
+    envs.insert(
+        "EDITOR",
+        "echo '[0]\nid = 0\ncommand = \"expected command string\"\npath = \"/tmp\"\npriority = 0' > ${PUEUE_EDIT_PATH} ||",
+    );
+    run_client_command_with_env(shared, &["edit", "0"], envs)?;
+
+    // Make sure that both the command has been updated.
+    let state = get_state(shared).await?;
+    let task = state.tasks.get(&0).unwrap();
+    assert_eq!(task.command, "expected command string");
+    assert_eq!(task.path.to_string_lossy(), "/tmp");
+
+    // All other properties should be unchanged.
+    assert_eq!(task.label, None);
+    assert_eq!(task.priority, 0);
 
     Ok(())
 }

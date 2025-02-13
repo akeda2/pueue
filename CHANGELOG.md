@@ -74,6 +74,10 @@ Upon updating Pueue and restarting the daemon, the previous state will be wiped,
 - Change default log level from error to warning [#562](https://github.com/Nukesor/pueue/issues/562).
 - Bumped MSRV to 1.70.
 - **Breaking**: Redesigned task editing process [#553](https://github.com/Nukesor/pueue/issues/553).
+  Pueue now allows editing all properties a task in one editor session. There're two modes to do so: `toml` and `files`.
+- Revisited, fixed and cleaned up CLI help texts.
+- Print most of Pueue's info/log messages to `stderr`. Only keep useful stuff like json and task log output on `stdout`.
+- **Breaking**: Ported from `anyhow` to `color_eyre` for prettier log output.
 
 ### Add
 
@@ -89,6 +93,7 @@ Upon updating Pueue and restarting the daemon, the previous state will be wiped,
 - Added Windows service on Windows to allow a true daemon experience. [#344](https://github.com/Nukesor/pueue/issues/344) [#567](https://github.com/Nukesor/pueue/pull/567)
 - Add `queued_count` and `stashed_count` to callback template variables. This allows users to fire callbacks when whole groups are finished. [#578](https://github.com/Nukesor/pueue/issues/578)
 - Add new subcommand to set or unset environment variables for tasks. [#503](https://github.com/Nukesor/pueue/issues/503)
+- Add `add --follow` flag that may be called in combination with `--immediate` [#592](https://github.com/Nukesor/pueue/issues/592)
 
 ### Fixed
 
@@ -255,7 +260,7 @@ The test coverage and development tooling has never been better, the project con
     If you need more filtering capabilities, please create an issue or a PR :).
   - `limit [last|first] 10` limit the results that'll be shown.
   - `order_by [column] [asc|desc]` order by certain columns.
-  - For exact info on the syntax check the [syntax file](https://github.com/Nukesor/pueue/blob/main/client/query/syntax.pest).
+  - For exact info on the syntax check the [syntax file](https://github.com/Nukesor/pueue/blob/main/pueue/src/client/query/syntax.pest).
     I still have to write detailed docs on how to use it.
 - Show a hint when calling `pueue log` if the task output has been truncated. [#318](https://github.com/Nukesor/pueue/issues/318)
 - Add `Settings.shared.alias_file`, which allows to set the location of the `pueue_aliases.yml` file.
@@ -387,7 +392,7 @@ Also a huge thanks to all contributors that helped working on this version!
 - Allow to set the amount of parallel tasks at group creation by [Spyros Roum](https://github.com/SpyrosRoum) [#245](https://github.com/Nukesor/pueue/issues/249).
 - When calling `pueue` without a subcommand, the `status` command will be called by default [#247](https://github.com/Nukesor/pueue/issues/247).
 - Add the `--group` parameter to the `pueue clean` command [#248](https://github.com/Nukesor/pueue/issues/248).
-- Add `output` for a task's log output as template parameters for callbacks [#269](https://github.com/Nukesor/issues/269).
+- Add `output` for a task's log output as template parameters for callbacks [#269](https://github.com/Nukesor/pueue/issues/269).
 - Add `--lines` parameter to `pueue follow` to only show specified number of lines from stdout before following [#270](https://github.com/Nukesor/pueue/issues/270).
 - Notify the user if a task is added to a paused group [#265](https://github.com/Nukesor/pueue/issues/265).
 - Notify the user that when killing whole groups, those groups are also paused [#265](https://github.com/Nukesor/pueue/issues/265).
@@ -568,7 +573,7 @@ Overall, this resulted in sleaker und much better maintainable code. However, th
 ### Fixed
 
 - Remove task logs on `pueue remove`. [#187](https://github.com/Nukesor/pueue/issues/187)
-- Improve Windows support by [oiatz](https://github.com/oiatz). [#114](https://github.com/Nukesor/pueue/issues/114)
+- Improve Windows support. [#114](https://github.com/Nukesor/pueue/issues/114)
 - Fix empty output for empty groups when requesting specific group with `status -g $name`. [#190](https://github.com/Nukesor/pueue/issues/190)
 - Fix missing output when explicitly requesting default group with `status -g default`. [#190](https://github.com/Nukesor/pueue/issues/190)
 
@@ -794,7 +799,7 @@ This version adds breaking changes:
 
 - Non-existing tasks were displayed as successfully removed. [#108](https://github.com/Nukesor/pueue/issues/108)
 - Remove child process handling logic for MacOs, since the library simply doesn't support this.
-- Remove unneeded `config` features and reduce compile time by ~10%. Contribution by [LovecraftianHorror](https://github.com/LovecraftianHorror) [#112](https://github.com/Nukesor/pueue/issues/112)
+- Remove unneeded `config` features and reduce compile time by ~10%.
 - Remove futures-timers, effectively reducing compile time by ~14%. [#112](https://github.com/Nukesor/pueue/issues/112)
 - Update to comfy-table v1.1.0, reducing compile time by another ~10%. [#112](https://github.com/Nukesor/pueue/issues/112)
 

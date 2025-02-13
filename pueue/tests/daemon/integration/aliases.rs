@@ -1,11 +1,9 @@
 use std::collections::HashMap;
 
-use anyhow::Result;
 use assert_matches::assert_matches;
-
 use pueue_lib::{network::message::*, task::*};
 
-use crate::helper::*;
+use crate::{helper::*, internal_prelude::*};
 
 /// Test that using aliases when adding task normally works.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -85,7 +83,7 @@ async fn test_restart_with_alias() -> Result<()> {
         start_immediately: true,
         stashed: false,
     };
-    send_message(shared, message).await?;
+    send_request(shared, message).await?;
     let task = wait_for_task_condition(shared, 0, Task::is_done).await?;
 
     // The task finished successfully and its command has replaced the alias.

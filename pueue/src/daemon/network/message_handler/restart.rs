@@ -1,17 +1,16 @@
 use chrono::Local;
-use std::sync::MutexGuard;
-
 use pueue_lib::{
     aliasing::insert_alias,
     network::message::*,
     settings::Settings,
-    state::{SharedState, State},
     task::{Task, TaskStatus},
 };
 
-use crate::daemon::process_handler;
-
-use super::task_action_response_helper;
+use crate::daemon::{
+    internal_state::{state::LockedState, SharedState},
+    network::response_helper::task_action_response_helper,
+    process_handler,
+};
 
 /// This is a small wrapper around the actual in-place task `restart` functionality.
 ///
@@ -21,7 +20,7 @@ pub fn restart_multiple(
     settings: &Settings,
     state: &SharedState,
     message: RestartMessage,
-) -> Message {
+) -> Response {
     let task_ids: Vec<usize> = message.tasks.iter().map(|task| task.task_id).collect();
     let mut state = state.lock().unwrap();
 
@@ -52,14 +51,9 @@ pub fn restart_multiple(
 ///
 /// The "not in-place" restart functionality is actually just a copy the finished task + create a
 /// new task, which is completely handled on the client-side.
-fn restart(
-    state: &mut MutexGuard<State>,
-    to_restart: TaskToRestart,
-    stashed: bool,
-    settings: &Settings,
-) {
+fn restart(state: &mut LockedState, to_restart: TaskToRestart, stashed: bool, settings: &Settings) {
     // Check if we actually know this task.
-    let Some(task) = state.tasks.get_mut(&to_restart.task_id) else {
+    let Some(task) = state.tasks_mut().get_mut(&to_restart.task_id) else {
         return;
     };
 

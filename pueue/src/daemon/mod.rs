@@ -1,32 +1,37 @@
-use std::path::Path;
-use std::sync::{Arc, Mutex};
-use std::{fs::create_dir_all, path::PathBuf};
-
-use anyhow::{bail, Context, Result};
-use log::warn;
+use std::{
+    fs::create_dir_all,
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
+};
 
 use process_handler::initiate_shutdown;
-use pueue_lib::error::Error;
-use pueue_lib::network::certificate::create_certificates;
-use pueue_lib::network::message::Shutdown;
-use pueue_lib::network::protocol::socket_cleanup;
-use pueue_lib::network::secret::init_shared_secret;
-use pueue_lib::settings::Settings;
-use pueue_lib::state::{SharedState, State};
+use pueue_lib::{
+    error::Error,
+    network::{
+        certificate::create_certificates, message::Shutdown, protocol::socket_cleanup,
+        secret::init_shared_secret,
+    },
+    settings::Settings,
+};
 use tokio::try_join;
 
-use self::state_helper::{restore_state, save_state};
-use crate::daemon::network::socket::accept_incoming;
+use crate::{
+    daemon::{
+        internal_state::{state::InternalState, SharedState},
+        network::socket::accept_incoming,
+    },
+    internal_prelude::*,
+};
 
 mod callbacks;
 pub mod cli;
+/// The daemon's state representation that contains process related data not exposed to clients.
+pub mod internal_state;
 mod network;
 mod pid;
 mod process_handler;
 #[cfg(target_os = "windows")]
 pub mod service;
-/// Contains re-usable helper functions, that operate on the pueue-lib state.
-pub mod state_helper;
 pub mod task_handler;
 
 /// The main entry point for the daemon logic.
@@ -67,18 +72,20 @@ pub async fn run(config_path: Option<PathBuf>, profile: Option<String>, test: bo
     // Restore the previous state and save any changes that might have happened during this
     // process. If no previous state exists, just create a new one.
     // Create a new empty state if any errors occur, but print the error message.
-    let state = match restore_state(&settings.shared.pueue_directory()) {
+    let state = match InternalState::restore_state(&settings.shared.pueue_directory()) {
         Ok(Some(state)) => state,
-        Ok(None) => State::new(),
+        Ok(None) => InternalState::new(),
         Err(error) => {
             warn!("Failed to restore previous state:\n {error:?}");
             warn!("Using clean state instead.");
-            State::new()
+            InternalState::new()
         }
     };
 
     // Save the state once at the very beginning.
-    save_state(&state, &settings).context("Failed to save state on startup.")?;
+    state
+        .save(&settings)
+        .context("Failed to save state on startup.")?;
     let state = Arc::new(Mutex::new(state));
 
     // Don't set ctrlc and panic handlers during testing.
@@ -155,14 +162,14 @@ fn setup_signal_panic_handling(settings: &Settings, state: SharedState) -> Resul
 
         // Cleanup the pid file
         if let Err(error) = pid::cleanup_pid_file(&settings_clone.shared.pid_path()) {
-            println!("Failed to cleanup pid after panic.");
-            println!("{error}");
+            eprintln!("Failed to cleanup pid after panic.");
+            eprintln!("{error}");
         }
 
         // Remove the unix socket.
         if let Err(error) = socket_cleanup(&settings_clone.shared) {
-            println!("Failed to cleanup socket after panic.");
-            println!("{error}");
+            eprintln!("Failed to cleanup socket after panic.");
+            eprintln!("{error}");
         }
 
         std::process::exit(1);

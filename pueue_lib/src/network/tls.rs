@@ -1,16 +1,13 @@
-use std::fs::File;
-use std::io::BufReader;
-use std::path::Path;
-use std::sync::Arc;
+use std::{fs::File, io::BufReader, path::Path, sync::Arc};
 
+use rustls::{
+    pki_types::{CertificateDer, PrivateKeyDer},
+    ClientConfig, RootCertStore, ServerConfig,
+};
+use rustls_pemfile::{pkcs8_private_keys, rsa_private_keys};
 use tokio_rustls::{TlsAcceptor, TlsConnector};
 
-use rustls::pki_types::{CertificateDer, PrivateKeyDer};
-use rustls::{ClientConfig, RootCertStore, ServerConfig};
-use rustls_pemfile::{pkcs8_private_keys, rsa_private_keys};
-
-use crate::error::Error;
-use crate::settings::Shared;
+use crate::{error::Error, settings::Shared};
 
 /// Initialize our client [TlsConnector]. \
 /// 1. Trust our own CA. ONLY our own CA.
@@ -53,7 +50,6 @@ fn load_certs<'a>(path: &Path) -> Result<Vec<CertificateDer<'a>>, Error> {
         .collect::<Result<Vec<_>, std::io::Error>>()
         .map_err(|_| Error::CertificateFailure("Failed to parse daemon certificate.".into()))?
         .into_iter()
-        .map(CertificateDer::from)
         .collect();
 
     Ok(certs)
@@ -98,7 +94,6 @@ fn load_ca<'a>(path: &Path) -> Result<CertificateDer<'a>, Error> {
         .collect::<Result<Vec<_>, std::io::Error>>()
         .map_err(|_| Error::CertificateFailure("Failed to parse daemon certificate.".into()))?
         .into_iter()
-        .map(CertificateDer::from)
         .next()
         .ok_or_else(|| Error::CertificateFailure("Couldn't find CA certificate in file".into()))?;
 

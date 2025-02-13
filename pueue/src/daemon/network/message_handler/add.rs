@@ -1,29 +1,36 @@
 use chrono::Local;
-use pueue_lib::aliasing::insert_alias;
-use pueue_lib::failure_msg;
-use pueue_lib::network::message::*;
-use pueue_lib::state::{GroupStatus, SharedState};
-use pueue_lib::task::{Task, TaskStatus};
+use pueue_lib::{
+    aliasing::insert_alias,
+    failure_msg,
+    network::message::*,
+    settings::Settings,
+    state::GroupStatus,
+    task::{Task, TaskStatus},
+};
 
-use super::*;
-use crate::daemon::process_handler;
-use crate::daemon::state_helper::save_state;
-use crate::ok_or_save_state_failure;
+use crate::{
+    daemon::{
+        internal_state::SharedState,
+        network::{message_handler::ok_or_failure_message, response_helper::ensure_group_exists},
+        process_handler,
+    },
+    ok_or_save_state_failure,
+};
 
 /// Invoked when calling `pueue add`.
 /// Queues a new task to the state.
 /// If the start_immediately flag is set, send a StartMessage to the task handler.
-pub fn add_task(settings: &Settings, state: &SharedState, message: AddMessage) -> Message {
+pub fn add_task(settings: &Settings, state: &SharedState, message: AddMessage) -> Response {
     let mut state = state.lock().unwrap();
-    if let Err(message) = ensure_group_exists(&mut state, &message.group) {
-        return message;
+    if let Err(response) = ensure_group_exists(&mut state, &message.group) {
+        return response;
     }
 
     // Ensure that specified dependencies actually exist.
     let not_found: Vec<_> = message
         .dependencies
         .iter()
-        .filter(|id| !state.tasks.contains_key(id))
+        .filter(|id| !state.tasks().contains_key(id))
         .collect();
     if !not_found.is_empty() {
         return failure_msg!("Unable to setup dependencies : task(s) {not_found:?} not found",);
@@ -64,7 +71,7 @@ pub fn add_task(settings: &Settings, state: &SharedState, message: AddMessage) -
 
     // Check if the task's group is paused before we pass it to the state
     let group_status = state
-        .groups
+        .groups()
         .get(&task.group)
         .expect("We ensured that the group exists.")
         .status;
@@ -72,27 +79,17 @@ pub fn add_task(settings: &Settings, state: &SharedState, message: AddMessage) -
 
     // Add the task and persist the state.
     let task_id = state.add_task(task);
-    ok_or_save_state_failure!(save_state(&state, settings));
+    ok_or_save_state_failure!(state.save(settings));
 
     // Notify the task handler, in case the client wants to start the task immediately.
     if message.start_immediately {
         process_handler::start::start(settings, &mut state, TaskSelection::TaskIds(vec![task_id]));
     }
 
-    // Create the customized response for the client.
-    let mut response = if message.print_task_id {
-        task_id.to_string()
-    } else if let Some(enqueue_at) = message.enqueue_at {
-        let enqueue_at = format_datetime(settings, &enqueue_at);
-        format!("New task added (id {task_id}). It will be enqueued at {enqueue_at}")
-    } else {
-        format!("New task added (id {task_id}).")
-    };
-
-    // Notify the user if the task's group is paused
-    if !message.print_task_id && group_is_paused {
-        response.push_str("\nThe group of this task is currently paused!")
+    AddedTaskMessage {
+        task_id,
+        enqueue_at: message.enqueue_at,
+        group_is_paused,
     }
-
-    create_success_message(response)
+    .into()
 }
