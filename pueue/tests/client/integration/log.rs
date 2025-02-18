@@ -1,12 +1,10 @@
 use std::collections::{BTreeMap, HashMap};
 
-use anyhow::{Context, Result};
+use pueue_lib::task::Task;
 use rstest::rstest;
 use serde::Deserialize;
 
-use pueue_lib::task::Task;
-
-use crate::client::helper::*;
+use crate::{client::helper::*, internal_prelude::*};
 
 /// Test that the `log` command works for both:
 /// - The log being streamed by the daemon.

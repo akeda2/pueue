@@ -1,15 +1,15 @@
-use anyhow::{bail, Result};
-
 use chrono::Local;
-use pueue_lib::network::message::*;
-use pueue_lib::network::protocol::*;
-use pueue_lib::settings::Settings;
-use pueue_lib::state::FilteredTasks;
-use pueue_lib::task::{Task, TaskResult, TaskStatus};
+use pueue_lib::{
+    client::Client,
+    network::message::*,
+    state::FilteredTasks,
+    task::{Task, TaskResult, TaskStatus},
+};
 
-use crate::client::commands::get_state;
-
-use super::edit::edit_tasks;
+use crate::{
+    client::commands::{edit::edit_tasks, get_state},
+    internal_prelude::*,
+};
 
 /// When restarting tasks, the remote state is queried and a [AddMessage]
 /// is create from the existing task in the state.
@@ -18,16 +18,19 @@ use super::edit::edit_tasks;
 /// It's also necessary to get all failed tasks, in case the user specified the `--all-failed` flag.
 #[allow(clippy::too_many_arguments)]
 pub async fn restart(
-    stream: &mut GenericStream,
-    settings: &Settings,
+    client: &mut Client,
     task_ids: Vec<usize>,
     all_failed: bool,
     failed_in_group: Option<String>,
     start_immediately: bool,
     stashed: bool,
     in_place: bool,
+    not_in_place: bool,
     edit: bool,
 ) -> Result<()> {
+    // `not_in_place` superseeds both other configs
+    let in_place = (client.settings.client.restart_in_place || in_place) && !not_in_place;
+
     let new_status = if stashed {
         TaskStatus::Stashed { enqueue_at: None }
     } else {
@@ -36,7 +39,7 @@ pub async fn restart(
         }
     };
 
-    let state = get_state(stream).await?;
+    let state = get_state(client).await?;
 
     // Filter to get done tasks
     let done_filter = |task: &Task| task.is_done();
@@ -44,7 +47,8 @@ pub async fn restart(
     // If all failed tasks or all failed tasks from a specific group are requested,
     // determine the ids of those failed tasks.
     //
-    // Otherwise, use the provided ids and check which of them were "Done" (successful or failed tasks).
+    // Otherwise, use the provided ids and check which of them were "Done"
+    // (successful or failed tasks).
     let filtered_tasks = if all_failed || failed_in_group.is_some() {
         // Either all failed tasks or all failed tasks of a specific group need to be restarted.
 
@@ -101,7 +105,7 @@ pub async fn restart(
     // If the tasks should be edited, edit them in one go.
     if edit {
         let mut editable_tasks: Vec<EditableTask> = tasks.iter().map(EditableTask::from).collect();
-        editable_tasks = edit_tasks(settings, editable_tasks)?;
+        editable_tasks = edit_tasks(&client.settings, editable_tasks)?;
 
         // Now merge the edited properties back into the tasks.
         // We simply zip the task and editable task vectors, as we know that they have the same
@@ -131,7 +135,8 @@ pub async fn restart(
         }
 
         // In case we don't do in-place restarts, we have to add a new task.
-        // Create a AddMessage to send the task to the daemon from the updated info and the old task.
+        // Create a AddMessage to send the task to the daemon from the updated info and the old
+        // task.
         let add_task_message = AddMessage {
             command: task.command,
             path: task.path,
@@ -146,16 +151,16 @@ pub async fn restart(
         };
 
         // Send the cloned task to the daemon and abort on any failure messages.
-        send_message(add_task_message, stream).await?;
-        if let Message::Failure(message) = receive_message(stream).await? {
+        client.send_request(add_task_message).await?;
+        if let Response::Failure(message) = client.receive_response().await? {
             bail!(message);
         };
     }
 
     // Send the singular in-place restart message to the daemon.
     if in_place {
-        send_message(restart_message, stream).await?;
-        if let Message::Failure(message) = receive_message(stream).await? {
+        client.send_request(restart_message).await?;
+        if let Response::Failure(message) = client.receive_response().await? {
             bail!(message);
         };
     }

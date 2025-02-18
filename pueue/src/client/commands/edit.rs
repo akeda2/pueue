@@ -1,17 +1,18 @@
-use std::collections::BTreeMap;
-use std::env;
-use std::fs::{create_dir, read_to_string, File};
-use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::{
+    collections::BTreeMap,
+    env,
+    fs::{create_dir, read_to_string, File},
+    io::Write,
+    path::{Path, PathBuf},
+};
 
-use anyhow::{bail, Context, Result};
-use pueue_lib::error::Error;
-use pueue_lib::settings::Settings;
+use pueue_lib::{client::Client, error::Error, network::message::*, settings::Settings};
 use tempfile::tempdir;
 
-use pueue_lib::network::message::*;
-use pueue_lib::network::protocol::*;
-use pueue_lib::process_helper::compile_shell_command;
+use super::handle_response;
+use crate::{
+    client::style::OutputStyle, internal_prelude::*, process_helper::compile_shell_command,
+};
 
 /// This function handles the logic for editing tasks.
 /// At first, we request the daemon to send us the task to edit.
@@ -20,43 +21,39 @@ use pueue_lib::process_helper::compile_shell_command;
 ///
 /// After receiving the task information, the user can then edit it in their editor.
 /// Upon exiting the text editor, the line will then be read and sent to the server
-pub async fn edit(
-    stream: &mut GenericStream,
-    settings: &Settings,
-    task_ids: Vec<usize>,
-) -> Result<Message> {
+pub async fn edit(client: &mut Client, style: &OutputStyle, task_ids: Vec<usize>) -> Result<()> {
     // Request the data to edit from the server and issue a task-lock while doing so.
-    let init_message = Message::EditRequest(task_ids);
-    send_message(init_message, stream).await?;
+    let init_message = Request::EditRequest(task_ids);
+    client.send_request(init_message).await?;
 
-    let init_response = receive_message(stream).await?;
+    let init_response = client.receive_response().await?;
 
     // In case we don't receive an EditResponse, something went wrong.
-    // Return the response to the parent function and let the client handle it
-    // by the generic message handler.
-    let Message::EditResponse(editable_tasks) = init_response else {
-        return Ok(init_response);
+    // Handle the response and return.
+    let Response::Edit(editable_tasks) = init_response else {
+        handle_response(style, init_response)?;
+        return Ok(());
     };
 
     let task_ids: Vec<usize> = editable_tasks.iter().map(|task| task.id).collect();
-    let result = edit_tasks(settings, editable_tasks);
+    let result = edit_tasks(&client.settings, editable_tasks);
 
     // Any error while editing will result in the client aborting the editing process.
     // However, as the daemon moves tasks that're edited into the `Locked` state, we cannot simply
-    // exit the client. We rather have to notify the daemon that the editing process was interrupted.
-    // In the following, we notify the daemon of any errors, so it can restore the tasks to
-    // their previous state.
+    // exit the client. We rather have to notify the daemon that the editing process was
+    // interrupted. In the following, we notify the daemon of any errors, so it can restore the
+    // tasks to their previous state.
     let editable_tasks = match result {
         Ok(editable_tasks) => editable_tasks,
         Err(error) => {
             eprintln!("Encountered an error while editing. Trying to restore the task's status.");
             // Notify the daemon that something went wrong.
-            let edit_message = Message::EditRestore(task_ids);
-            send_message(edit_message, stream).await?;
+            let edit_message = Request::EditRestore(task_ids);
+            client.send_request(edit_message).await?;
 
-            let response = receive_message(stream).await?;
+            let response = client.receive_response().await?;
             match response {
-                Message::Failure(message) | Message::Success(message) => {
+                Response::Failure(message) | Response::Success(message) => {
                     eprintln!("{message}");
                 }
                 _ => eprintln!("Received unknown response: {response:?}"),
@@ -66,10 +63,13 @@ pub async fn edit(
         }
     };
 
-    // Create a new message with the edited properties.
-    send_message(Message::Edit(editable_tasks), stream).await?;
+    // Send the edited tasks back to the daemon.
+    client.send_request(Request::Edit(editable_tasks)).await?;
 
-    Ok(receive_message(stream).await?)
+    let response = client.receive_response().await?;
+    handle_response(style, response)?;
+
+    Ok(())
 }
 
 /// This is a small generic wrapper around the editing logic.

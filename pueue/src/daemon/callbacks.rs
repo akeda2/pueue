@@ -2,15 +2,16 @@ use std::collections::HashMap;
 
 use chrono::{DateTime, Local};
 use handlebars::{Handlebars, RenderError};
-use log::{debug, error, info};
 use pueue_lib::{
     log::{get_log_path, read_last_log_file_lines},
-    process_helper::compile_shell_command,
     settings::Settings,
     task::{Task, TaskResult, TaskStatus},
 };
 
-use super::state_helper::LockedState;
+use crate::{
+    daemon::internal_state::state::LockedState, internal_prelude::*,
+    process_helper::compile_shell_command,
+};
 
 /// Users can specify a callback that's fired whenever a task finishes.
 /// The callback is performed by spawning a new subprocess.

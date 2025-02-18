@@ -1,11 +1,7 @@
-use anyhow::{Context, Result};
 use assert_matches::assert_matches;
+use pueue_lib::{network::message::*, state::GroupStatus, task::*};
 
-use pueue_lib::network::message::*;
-use pueue_lib::state::GroupStatus;
-use pueue_lib::task::*;
-
-use crate::helper::*;
+use crate::{helper::*, internal_prelude::*};
 
 /// Make sure that no tasks will be started in a paused queue
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -79,7 +75,7 @@ async fn test_pause_with_wait() -> Result<()> {
         tasks: TaskSelection::Group(PUEUE_DEFAULT_GROUP.into()),
         wait: true,
     };
-    send_message(shared, message)
+    send_request(shared, message)
         .await
         .context("Failed to send message")?;
 

@@ -1,11 +1,9 @@
-use anyhow::Result;
-
 use pueue_lib::{
     network::message::{KillMessage, TaskSelection},
     task::*,
 };
 
-use crate::helper::*;
+use crate::{helper::*, internal_prelude::*};
 
 /// Test if adding a normal task works as intended.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -52,7 +50,7 @@ async fn test_failing_dependency() -> Result<()> {
 
     // Now we kill the first task.
     // This should result in the second task failing.
-    send_message(
+    send_request(
         shared,
         KillMessage {
             tasks: TaskSelection::TaskIds(vec![0]),

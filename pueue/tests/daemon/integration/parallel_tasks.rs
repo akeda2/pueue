@@ -1,9 +1,7 @@
-use anyhow::Result;
 use assert_matches::assert_matches;
-
 use pueue_lib::{network::message::ParallelMessage, task::*};
 
-use crate::helper::*;
+use crate::{helper::*, internal_prelude::*};
 
 /// Test that multiple groups with multiple slots work.
 ///
@@ -86,7 +84,7 @@ async fn test_unlimited_parallel_tasks() -> Result<()> {
         group: "testgroup".to_string(),
         parallel_tasks: 0,
     };
-    assert_success(send_message(shared, message).await?);
+    assert_success(send_request(shared, message).await?);
 
     // Make sure all other tasks are started as well in quick succession.
     for task_id in 1..10 {

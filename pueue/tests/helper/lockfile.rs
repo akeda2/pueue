@@ -3,9 +3,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{Context, Result};
-
 use super::{daemon_base_setup, daemon_with_settings, PueueDaemon};
+use crate::internal_prelude::*;
 
 /// A helper wrapper around [`daemon`] that also creates a lockfile that can be listened to from a
 /// task via `inotifywait -e delete_self "$FILE"`.

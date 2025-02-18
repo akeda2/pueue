@@ -1,21 +1,17 @@
 use std::time::{Duration, SystemTime};
 
-use anyhow::{bail, Context, Result};
-use clap::crate_version;
-use log::{debug, info, warn};
+use pueue_lib::{
+    error::Error,
+    network::{message::*, protocol::*, secret::read_shared_secret},
+    settings::Settings,
+    PROTOCOL_VERSION,
+};
 use tokio::time::sleep;
 
-use pueue_lib::error::Error;
-use pueue_lib::network::message::*;
-use pueue_lib::network::protocol::*;
-use pueue_lib::network::secret::read_shared_secret;
-use pueue_lib::settings::Settings;
-use pueue_lib::state::SharedState;
-
-use crate::daemon::network::message_handler::handle_message;
-use crate::daemon::process_handler::initiate_shutdown;
-
-use super::message_handler::follow_log;
+use crate::{
+    daemon::{internal_state::SharedState, network::message_handler::handle_request},
+    internal_prelude::*,
+};
 
 /// Listen for new connections on the socket.
 /// On a new connection, the connected stream will be handled in a separate tokio task.
@@ -56,8 +52,8 @@ pub async fn accept_incoming(settings: Settings, state: SharedState) -> Result<(
 ///
 /// There're two edge-cases where this pattern is not valid:
 /// 1. Shutdown. In that case the message is sent first and the daemon shuts down afterwards.
-/// 2. Streaming of logs. The Daemon will continuously send messages with log chunks until
-///    the watched task finished or the client disconnects.
+/// 2. Streaming of logs. The Daemon will continuously send messages with log chunks until the
+///    watched task finished or the client disconnects.
 async fn handle_incoming(
     mut stream: GenericStream,
     state: SharedState,
@@ -91,60 +87,31 @@ async fn handle_incoming(
     }
 
     // Send confirmation to the client, that the secret was valid.
-    // This is also the current version of the daemon, so the client can inform user if the
-    // daemon needs a restart in case of a version mismatch.
-    send_bytes(crate_version!().as_bytes(), &mut stream).await?;
+    // This is also the current version of the pueue_lib protocol used by the daemon,
+    // so the client can inform users if the daemon needs a restart in case of a version mismatch.
+    send_bytes(PROTOCOL_VERSION.as_bytes(), &mut stream).await?;
 
     loop {
         // Receive the actual instruction from the client
-        let message_result = receive_message(&mut stream).await;
+        let request_result = receive_message(&mut stream).await;
 
-        if let Err(Error::EmptyPayload) = message_result {
+        if let Err(Error::EmptyPayload) = request_result {
             debug!("Client went away");
             return Ok(());
         }
 
         // In case of a deserialization error, respond the error to the client and return early.
-        if let Err(Error::MessageDeserialization(err)) = message_result {
-            send_message(
-                create_failure_message(format!("Failed to deserialize message: {err}")),
+        if let Err(Error::MessageDeserialization(err)) = request_result {
+            send_response(
+                create_failure_response(format!("Failed to deserialize message: {err}")),
                 &mut stream,
             )
             .await?;
             return Ok(());
         }
 
-        let message = message_result?;
+        let request = request_result?;
 
-        let response = match message {
-            // The client requested the output of a task.
-            // Since this involves streaming content, we have to do some special handling.
-            Message::StreamRequest(message) => {
-                let pueue_directory = settings.shared.pueue_directory();
-                follow_log(&pueue_directory, &mut stream, &state, message).await?
-            }
-            // To initiated a shutdown, a flag in Pueue's state is set that informs the TaskHandler
-            // to perform a graceful shutdown.
-            //
-            // However, this is an edge-case as we have respond to the client first.
-            // Otherwise it might happen, that the daemon shuts down too fast and we aren't
-            // capable of actually sending the message back to the client.
-            Message::DaemonShutdown(shutdown_type) => {
-                let response = create_success_message("Daemon is shutting down");
-                send_message(response, &mut stream).await?;
-
-                let mut state = state.lock().unwrap();
-                initiate_shutdown(&settings, &mut state, shutdown_type);
-
-                return Ok(());
-            }
-            _ => {
-                // Process a normal message.
-                handle_message(message, &state, &settings)
-            }
-        };
-
-        // Respond to the client.
-        send_message(response, &mut stream).await?;
+        handle_request(&mut stream, request, &state, &settings).await?;
     }
 }

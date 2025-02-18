@@ -1,10 +1,8 @@
-use anyhow::{Context, Result};
 use chrono::{DateTime, Local, TimeDelta};
+use pueue_lib::{network::message::*, state::GroupStatus, task::*};
 use rstest::rstest;
 
-use pueue_lib::{network::message::*, state::GroupStatus, task::*};
-
-use crate::helper::*;
+use crate::{helper::*, internal_prelude::*};
 
 /// Tasks can be stashed and scheduled for being enqueued at a specific point in time.
 ///
@@ -37,7 +35,7 @@ async fn test_enqueued_tasks(#[case] enqueue_at: Option<DateTime<Local>>) -> Res
         tasks: TaskSelection::TaskIds(vec![0]),
         enqueue_at: None,
     };
-    send_message(shared, enqueue_message)
+    send_request(shared, enqueue_message)
         .await
         .context("Failed to to add task message")?;
 
@@ -91,7 +89,7 @@ async fn test_stash_queued_task() -> Result<()> {
     add_task(shared, "sleep 10").await?;
 
     // Stash the task
-    send_message(
+    send_request(
         shared,
         StashMessage {
             tasks: TaskSelection::TaskIds(vec![0]),

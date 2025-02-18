@@ -1,13 +1,12 @@
-use std::fs::read_to_string;
-use std::fs::File;
-use std::path::Path;
-
-use anyhow::{bail, Context, Result};
-use tempfile::TempDir;
+use std::{
+    fs::{read_to_string, File},
+    path::Path,
+};
 
 use pueue_lib::{network::message::*, task::Task};
+use tempfile::TempDir;
 
-use crate::helper::*;
+use crate::{helper::*, internal_prelude::*};
 
 /// This function creates files `[1-20]` in the specified directory.
 /// The return value is the expected output.
@@ -100,10 +99,10 @@ async fn test_partial_log() -> Result<()> {
         send_logs: true,
         lines: Some(5),
     };
-    let response = send_message(shared, Message::Log(log_message)).await?;
+    let response = send_request(shared, Request::Log(log_message)).await?;
     let logs = match response {
-        Message::LogResponse(logs) => logs,
-        _ => bail!("Received non LogResponse: {:#?}", response),
+        Response::Log(logs) => logs,
+        _ => bail!("Received non Log Response: {:#?}", response),
     };
 
     // Get the received output
@@ -111,7 +110,7 @@ async fn test_partial_log() -> Result<()> {
     let output = logs
         .output
         .clone()
-        .context("Didn't find output on TaskLogMessage")?;
+        .ok_or(eyre!("Didn't find output on TaskLogMessage"))?;
     let output = decompress_log(output)?;
 
     // Make sure it's the same
@@ -137,10 +136,10 @@ async fn test_correct_log_order() -> Result<()> {
         send_logs: true,
         lines: None,
     };
-    let response = send_message(shared, Message::Log(log_message)).await?;
+    let response = send_request(shared, Request::Log(log_message)).await?;
     let logs = match response {
-        Message::LogResponse(logs) => logs,
-        _ => bail!("Received non LogResponse: {:#?}", response),
+        Response::Log(logs) => logs,
+        _ => bail!("Received non Log Response: {:#?}", response),
     };
 
     // Get the received output
@@ -148,7 +147,7 @@ async fn test_correct_log_order() -> Result<()> {
     let output = logs
         .output
         .clone()
-        .context("Didn't find output on TaskLogMessage")?;
+        .ok_or(eyre!("Didn't find output on TaskLogMessage"))?;
     let output = decompress_log(output)?;
 
     // Make sure it's the same
@@ -180,10 +179,10 @@ async fn logs_of_group() -> Result<()> {
         send_logs: true,
         lines: None,
     };
-    let response = send_message(shared, message).await?;
+    let response = send_request(shared, message).await?;
     let logs = match response {
-        Message::LogResponse(logs) => logs,
-        _ => bail!("Didn't get log response response in get_state"),
+        Response::Log(logs) => logs,
+        _ => bail!("Didn't get log response in get_state"),
     };
 
     assert_eq!(logs.len(), 1, "Sould only receive a single log entry.");
@@ -214,10 +213,10 @@ async fn logs_for_all() -> Result<()> {
         send_logs: true,
         lines: None,
     };
-    let response = send_message(shared, message).await?;
+    let response = send_request(shared, message).await?;
     let logs = match response {
-        Message::LogResponse(logs) => logs,
-        _ => bail!("Didn't get log response response in get_state"),
+        Response::Log(logs) => logs,
+        _ => bail!("Didn't get log response in get_state"),
     };
 
     assert_eq!(logs.len(), 2, "Sould receive all log entries.");
