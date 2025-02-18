@@ -23,7 +23,7 @@ cont "(re-)Install to /usr/bin/ and (re)add bash-completions to /usr/share/bash-
 # Enable service, start with "systemctl start --user pueued.service":
 cont "(re-)Copy service to /etc/systemd/user and enable+(re)start service?" \
 	&& { sudo cp utils/pueued.service /etc/systemd/user/ \
-		&& sudo systemctl daemon-reload \
+		&& systemctl daemon-reload --user \
 		&& systemctl enable --user pueued.service \
 		&& systemctl restart --user pueued.service \
 		&& echo "Service (re)start - success!" || echo "FAIL!";} \
