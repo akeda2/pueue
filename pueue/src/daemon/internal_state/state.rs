@@ -1,6 +1,6 @@
 use std::{
     collections::BTreeMap,
-    fs::{read_to_string, File},
+    fs::{File, read_to_string},
     io::{Read, Write},
     process::Child,
     sync::{Arc, Mutex, MutexGuard},
@@ -9,11 +9,11 @@ use std::{
 use chrono::Local;
 use flate2::Compression;
 use pueue_lib::{
+    Group, GroupStatus, Settings, State, TaskResult,
     error::Error,
-    network::message::request::Shutdown,
+    network::message::request::ShutdownRequest,
     state::{FilteredTasks, PUEUE_DEFAULT_GROUP},
     task::{Task, TaskStatus},
-    Group, GroupStatus, Settings, State, TaskResult,
 };
 use serde::{Deserialize, Serialize};
 
@@ -53,7 +53,7 @@ pub struct InternalState {
     /// Depending on the shutdown type, we're exiting with different exitcodes.
     /// This is runtime state and won't be serialised to disk.
     #[serde(default, skip)]
-    pub shutdown: Option<Shutdown>,
+    pub shutdown: Option<ShutdownRequest>,
 
     /// Pueue's subprocess and worker pool representation.
     /// Take a look at [Children] for more info.
@@ -254,7 +254,7 @@ impl InternalState {
         let mut temp = path.join("state.json.partial");
         let mut real = path.join("state.json");
 
-        if settings.daemon.compress_status_file {
+        if settings.daemon.compress_state_file {
             temp = path.join("state.json.gz.partial");
             real = path.join("state.json.gz");
 
@@ -290,7 +290,7 @@ impl InternalState {
         let pueue_directory = settings.shared.pueue_directory();
         let mut path = pueue_directory.join("state.json");
 
-        if settings.daemon.compress_status_file {
+        if settings.daemon.compress_state_file {
             path = pueue_directory.join("state.json.gz");
         }
 
@@ -302,7 +302,7 @@ impl InternalState {
         info!("Restoring state");
 
         // Try to load the file.
-        let data = if settings.daemon.compress_status_file {
+        let data = if settings.daemon.compress_state_file {
             let file = File::open(path)?;
             let mut decoder = flate2::read::GzDecoder::new(file);
             let mut data = String::new();

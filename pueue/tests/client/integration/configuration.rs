@@ -5,8 +5,8 @@ use std::{
 
 use assert_cmd::prelude::CommandCargoExt;
 use pueue_lib::{
-    settings::{Shared, PUEUE_CONFIG_PATH_ENV},
-    state::State,
+    State,
+    settings::{PUEUE_CONFIG_PATH_ENV, Shared},
 };
 
 use crate::{helper::*, internal_prelude::*};

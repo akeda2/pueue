@@ -1,13 +1,8 @@
 use chrono::Local;
-use pueue_lib::{
-    aliasing::insert_alias,
-    network::message::*,
-    settings::Settings,
-    task::{Task, TaskStatus},
-};
+use pueue_lib::{Settings, Task, TaskStatus, aliasing::insert_alias, network::message::*};
 
 use crate::daemon::{
-    internal_state::{state::LockedState, SharedState},
+    internal_state::{SharedState, state::LockedState},
     network::response_helper::task_action_response_helper,
     process_handler,
 };
@@ -19,7 +14,7 @@ use crate::daemon::{
 pub fn restart_multiple(
     settings: &Settings,
     state: &SharedState,
-    message: RestartMessage,
+    message: RestartRequest,
 ) -> Response {
     let task_ids: Vec<usize> = message.tasks.iter().map(|task| task.task_id).collect();
     let mut state = state.lock().unwrap();

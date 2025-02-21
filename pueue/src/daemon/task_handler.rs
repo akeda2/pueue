@@ -2,16 +2,14 @@ use std::{collections::BTreeMap, time::Duration};
 
 use chrono::prelude::*;
 use pueue_lib::{
+    Group, GroupStatus, Settings, TaskResult, TaskStatus,
     network::{message::*, protocol::socket_cleanup},
-    settings::Settings,
-    state::{Group, GroupStatus},
-    task::{TaskResult, TaskStatus},
 };
 
 use crate::{
     daemon::{
         callbacks::{check_callbacks, spawn_callback},
-        internal_state::{children::Children, state::LockedState, SharedState},
+        internal_state::{SharedState, children::Children, state::LockedState},
         pid::cleanup_pid_file,
         process_handler::{finish::handle_finished_tasks, spawn::spawn_new},
     },
@@ -90,7 +88,7 @@ fn handle_shutdown(settings: &Settings, state: &mut LockedState) {
 
     // Actually exit the program the way we're supposed to.
     // Depending on the current shutdown type, we exit with different exit codes.
-    if matches!(state.shutdown, Some(Shutdown::Emergency)) {
+    if matches!(state.shutdown, Some(ShutdownRequest::Emergency)) {
         std::process::exit(1);
     }
     std::process::exit(0);
