@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 cont() {
     local prompt="${1:-Continue?} (y/n): "
     read -p "$prompt" -n 1 -r
