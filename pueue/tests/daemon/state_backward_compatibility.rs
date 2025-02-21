@@ -1,7 +1,7 @@
 use std::{fs::File, io::prelude::*};
 
 use pueue::daemon::internal_state::state::InternalState;
-use pueue_lib::settings::Settings;
+use pueue_lib::Settings;
 use tempfile::TempDir;
 
 use crate::internal_prelude::*;
@@ -21,18 +21,19 @@ fn test_restore_from_old_state() -> Result<()> {
     let old_state = include_str!("data/v4.0.0_state.json");
 
     let temp_dir = TempDir::new()?;
-    let temp_path = temp_dir.path();
+    let temp_path = temp_dir.path().to_path_buf();
 
     // Open new file and write old state to it.
-    let temp_state_path = temp_dir.path().join("state.json");
+    let temp_state_path = temp_path.join("state.json");
     let mut file = File::create(temp_state_path)?;
     file.write_all(old_state.as_bytes())?;
 
     let mut settings = Settings::default();
-    settings.shared.pueue_directory = Some(temp_path.to_path_buf());
+    settings.shared.pueue_directory = Some(temp_path);
+    debug!("{settings:#?}");
 
-    let state = InternalState::restore_state(&settings.shared.pueue_directory())
-        .context("Failed to restore state in test")?;
+    let state =
+        InternalState::restore_state(&settings).context("Failed to restore state in test")?;
 
     assert!(state.is_some());
 

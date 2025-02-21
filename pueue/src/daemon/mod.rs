@@ -6,18 +6,18 @@ use std::{
 
 use process_handler::initiate_shutdown;
 use pueue_lib::{
+    Settings,
     error::Error,
     network::{
-        certificate::create_certificates, message::Shutdown, protocol::socket_cleanup,
+        certificate::create_certificates, message::ShutdownRequest, protocol::socket_cleanup,
         secret::init_shared_secret,
     },
-    settings::Settings,
 };
 use tokio::try_join;
 
 use crate::{
     daemon::{
-        internal_state::{state::InternalState, SharedState},
+        internal_state::{SharedState, state::InternalState},
         network::socket::accept_incoming,
     },
     internal_prelude::*,
@@ -72,7 +72,7 @@ pub async fn run(config_path: Option<PathBuf>, profile: Option<String>, test: bo
     // Restore the previous state and save any changes that might have happened during this
     // process. If no previous state exists, just create a new one.
     // Create a new empty state if any errors occur, but print the error message.
-    let state = match InternalState::restore_state(&settings.shared.pueue_directory()) {
+    let state = match InternalState::restore_state(&settings) {
         Ok(Some(state)) => state,
         Ok(None) => InternalState::new(),
         Err(error) => {
@@ -150,7 +150,7 @@ fn setup_signal_panic_handling(settings: &Settings, state: SharedState) -> Resul
     // The actual program exit will be done via the TaskHandler.
     ctrlc::set_handler(move || {
         let mut state = state_clone.lock().unwrap();
-        initiate_shutdown(&settings_clone, &mut state, Shutdown::Graceful);
+        initiate_shutdown(&settings_clone, &mut state, ShutdownRequest::Graceful);
     })?;
 
     // Try to do some final cleanup, even if we panic.

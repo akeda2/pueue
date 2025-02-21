@@ -4,7 +4,7 @@
 // type.
 use color_eyre::Result;
 use command_group::{GroupChild, Signal, UnixChildExt};
-use pueue_lib::settings::Settings;
+use pueue_lib::Settings;
 
 use crate::internal_prelude::*;
 
@@ -46,7 +46,7 @@ mod tests {
 
     use color_eyre::Result;
     use command_group::CommandGroup;
-    use libproc::processes::{pids_by_type, ProcFilter};
+    use libproc::processes::{ProcFilter, pids_by_type};
     use pretty_assertions::assert_eq;
 
     use super::*;

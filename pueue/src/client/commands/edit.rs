@@ -1,7 +1,7 @@
 use std::{
     collections::BTreeMap,
     env,
-    fs::{create_dir, read_to_string, File},
+    fs::{File, create_dir, read_to_string},
     io::Write,
     path::{Path, PathBuf},
 };
@@ -64,7 +64,9 @@ pub async fn edit(client: &mut Client, style: &OutputStyle, task_ids: Vec<usize>
     };
 
     // Send the edited tasks back to the daemon.
-    client.send_request(Request::Edit(editable_tasks)).await?;
+    client
+        .send_request(Request::EditedTasks(editable_tasks))
+        .await?;
 
     let response = client.receive_response().await?;
     handle_response(style, response)?;

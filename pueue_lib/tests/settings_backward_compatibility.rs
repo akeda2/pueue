@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use color_eyre::{eyre::WrapErr, Result};
-use pueue_lib::settings::Settings;
+use color_eyre::{Result, eyre::WrapErr};
+use pueue_lib::Settings;
 
 /// From 0.15.0 on, we aim to have full backward compatibility.
 /// For this reason, an old (slightly modified) v0.15.0 serialized settings file
@@ -14,7 +14,7 @@ use pueue_lib::settings::Settings;
 /// On top of simply having old settings, I also removed a few default fields.
 /// This should be handled as well.
 #[test]
-fn test_restore_from_old_state() -> Result<()> {
+fn test_restore_from_old_settings() -> Result<()> {
     better_panic::install();
     let old_settings_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
