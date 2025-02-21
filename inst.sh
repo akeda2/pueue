@@ -1,14 +1,19 @@
-#!/bin/bash
+#!/bin/bash -x
 cont() {
     local prompt="${1:-Continue?} (y/n): "
     read -p "$prompt" -n 1 -r
     echo
     [[ $REPLY =~ ^[Yy]$ ]]
 }
+install_cargo(){
+	curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+}
+[[ ! -z $1 ]] && install_cargo && exit 0
 # Look for cargo:
 command -v cargo \
 	|| { cont "No cargo/rust. Install?" \
-		&& curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh ;\
+		&& install_cargo ;\
+		#&& curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh ;\
 		echo "Logout, login and run again" ;\
 		exit 0;}
 # Build pueue:
