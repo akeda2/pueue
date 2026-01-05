@@ -2,7 +2,8 @@ use std::{fs::File, io::Write, path::Path};
 
 use rcgen::{CertifiedKey, generate_simple_self_signed};
 
-use crate::{error::Error, internal_prelude::*, settings::Shared};
+use crate::internal_prelude::*;
+use pueue_lib::{error::Error, settings::Shared};
 
 /// This the default certificates at the default `pueue_dir/certs` location.
 pub fn create_certificates(shared_settings: &Shared) -> Result<(), Error> {
@@ -25,15 +26,15 @@ pub fn create_certificates(shared_settings: &Shared) -> Result<(), Error> {
 
     let subject_alt_names = vec!["pueue.local".to_string(), "localhost".to_string()];
 
-    let CertifiedKey { cert, key_pair } =
-        generate_simple_self_signed(subject_alt_names).map_err(|_| {
+    let CertifiedKey { cert, signing_key } = generate_simple_self_signed(subject_alt_names)
+        .map_err(|_| {
             Error::CertificateFailure("Failed to generate self-signed daemon certificate.".into())
         })?;
     // The certificate is now valid for localhost and the domain "hello.world.example"
     let ca_cert = cert.pem();
     write_file(ca_cert, "daemon cert", &daemon_cert_path)?;
 
-    let ca_key = key_pair.serialize_pem();
+    let ca_key = signing_key.serialize_pem();
     write_file(ca_key, "daemon key", &daemon_key_path)?;
 
     Ok(())

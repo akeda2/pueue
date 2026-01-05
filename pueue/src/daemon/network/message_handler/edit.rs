@@ -1,9 +1,9 @@
-use pueue_lib::{
-    TaskStatus, aliasing::insert_alias, failure_msg, network::message::*, success_msg,
-};
+use pueue_lib::{TaskStatus, failure_msg, message::*, success_msg};
 
 use super::*;
-use crate::{daemon::internal_state::SharedState, ok_or_save_state_failure};
+use crate::{
+    aliasing::insert_alias, daemon::internal_state::SharedState, ok_or_save_state_failure,
+};
 
 /// Invoked when calling `pueue edit`.
 /// If a user wants to edit a message, we need to send him the current command.
@@ -54,8 +54,8 @@ pub fn edit(
                 task.status = *previous_status.clone();
 
                 // Update all properties to the edited values.
-                task.original_command = editable_task.command.clone();
-                task.command = insert_alias(settings, editable_task.command);
+                task.original_command = editable_task.original_command.clone();
+                task.command = insert_alias(settings, editable_task.original_command);
                 task.path = editable_task.path;
                 task.label = editable_task.label;
                 task.priority = editable_task.priority;
@@ -78,14 +78,14 @@ pub fn edit_restore(state: &SharedState, task_ids: Vec<usize>) -> Response {
         match state.tasks_mut().get_mut(task_id) {
             Some(task) => {
                 let TaskStatus::Locked { previous_status } = &task.status else {
-                    failed_tasks.push(format!("Task {} isn't locked! Cannot be unlocked", task_id));
+                    failed_tasks.push(format!("Task {task_id} isn't locked! Cannot be unlocked"));
                     continue;
                 };
 
                 // Restore the task to its previous state.
                 task.status = *previous_status.clone();
             }
-            None => failed_tasks.push(format!("No task with id {}! Cannot be unlocked.", task_id)),
+            None => failed_tasks.push(format!("No task with id {task_id}! Cannot be unlocked.")),
         }
     }
 

@@ -6,12 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 This project adheres **somewhat** to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 The concept of SemVer is applied to the daemon/client API, but not the library API itself.
 
-## [0.29. ] - unreleased
+## [0.31.0] - unreleased
+
+## [0.30.0] - 2025-07-07
+
+### Changed
+
+- Remove lots of daemon-exclusive functions from `pueue_lib` into the `pueue/daemon` folder.
+- Untangle TLS related code from `socket`/`protocol` code.
+- Move `message` module away from `network` module.
+- Untangle `settings` and `socket`/`protocol` code to allow usage of those functions without having to construct a `settings::Shared` struct.
+  This should make it a lot easier to write clients in the future.
+- Hide `settings`, `log`, `network` and `tls` logic behind feature flags. They're all enabled by default.
+
+## [0.29.0] - 2025-03-09
 
 ### Changed
 
 - Streamline all `Request` and `Response` variant names and struct names used in unit variant.
 - Prepare `Request::Stream` and `Response::Stream` to be compatible with multiple follow tasks in the scope of [#614](https://github.com/Nukesor/pueue/issues/614).
+- Rename `command` to `original_command` in `EditableTask` and `TaskToRestart` to prevent confusion and ambiguity.
+- Add new `receive_bytes_with_max_size` function to restrict message buffer size for DoS prevention.
+- Add `compress_state_file` setting (used by daemon).
 
 ## [0.28.1] - 2025-02-17
 

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use pueue_lib::{
-    failure_msg, network::message::*, settings::Settings, state::PUEUE_DEFAULT_GROUP, success_msg,
+    failure_msg, message::*, settings::Settings, state::PUEUE_DEFAULT_GROUP, success_msg,
 };
 
 use crate::{
@@ -13,7 +13,7 @@ use crate::{
     ok_or_save_state_failure,
 };
 
-/// Invoked on `pueue groups`.
+/// Invoked on `pueue group`.
 /// Manage groups.
 /// - Show groups
 /// - Add group

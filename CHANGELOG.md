@@ -4,7 +4,28 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## \[4.0.0\] - unreleased
+## \[4.0.3\] - unreleased
+
+### Fix
+
+
+## \[4.0.2\] - 2021-12-19
+
+### Maintenance
+
+- Bump dependencies
+- Ditch deprecated `rustls_pemfile` library and directly use `rustls-pki-types`.
+- Switch to `assert_cmd::cargo_bin` in tests to migrate from deprecated Cargo::cargo_bin #651
+
+## \[4.0.1\] - 2025-07-07
+
+### Fixed
+
+- Fix extraneous double quotes being added to --config and --profile flags in Windows service install. #630
+- Fix --config/--path flags causing Windows service start to fail. #631
+- Removed forgotten debug log statement.
+
+## \[4.0.0\] - 2025-03-09
 
 This release aims to further improve Pueue and to rectify some old design decisions.
 Large portions of both the library and the executables' code have been refactored and the protocol has been reworked, which completely breaks backwards compatibility.
@@ -140,6 +161,7 @@ Upon updating Pueue and restarting the daemon, the previous state will be wiped,
 - Callback templating arguments were html escaped by accident. [#564](https://github.com/Nukesor/pueue/pull/564)
 - Print incompatible version warning info as a log message instead of plain stdout input, which broke json outputs [#562](https://github.com/Nukesor/pueue/issues/562).
 - Fixed `-d` daemon mode on Windows. [#344](https://github.com/Nukesor/pueue/issues/344)
+- Fixed a pueued crash when malformed secret exchange messages are sent by a connecting client [#619](https://github.com/Nukesor/pueue/issues/619).
 
 ### Remove
 

@@ -1,8 +1,13 @@
+//! Socket handling is platform specific code.
+//!
+//! The submodules of this module represent the different implementations for
+//! each supported platform.
+//! Depending on the target, the respective platform is read and loaded into this scope.
+
 use std::time::{Duration, SystemTime};
 
 use pueue_lib::{
-    Error, PROTOCOL_VERSION, Settings,
-    network::{message::*, protocol::*, secret::read_shared_secret},
+    Error, PROTOCOL_VERSION, Settings, message::*, network::protocol::*, secret::read_shared_secret,
 };
 use tokio::time::sleep;
 
@@ -10,6 +15,12 @@ use crate::{
     daemon::{internal_state::SharedState, network::message_handler::handle_request},
     internal_prelude::*,
 };
+
+/// Shared socket logic
+#[cfg_attr(not(target_os = "windows"), path = "unix.rs")]
+#[cfg_attr(target_os = "windows", path = "windows.rs")]
+mod platform;
+pub use self::platform::*;
 
 /// Listen for new connections on the socket.
 /// On a new connection, the connected stream will be handled in a separate tokio task.
@@ -52,14 +63,18 @@ pub async fn accept_incoming(settings: Settings, state: SharedState) -> Result<(
 /// 1. Shutdown. In that case the message is sent first and the daemon shuts down afterwards.
 /// 2. Streaming of logs. The Daemon will continuously send messages with log chunks until the
 ///    watched task finished or the client disconnects.
-async fn handle_incoming(
+pub async fn handle_incoming(
     mut stream: GenericStream,
     state: SharedState,
     settings: Settings,
     secret: Vec<u8>,
 ) -> Result<()> {
     // Receive the secret once and check, whether the client is allowed to connect
-    let payload_bytes = receive_bytes(&mut stream).await?;
+    // We only allow max payload sizes of 4MB for this one.
+    // Daemon's might be exposed publicly and get random traffic, potentially announcing huge
+    // payloads that would result in an OOM.
+    let payload_bytes =
+        receive_bytes_with_max_size(&mut stream, Some(4 * (2usize.pow(20)))).await?;
 
     // Didn't receive any bytes. The client disconnected.
     if payload_bytes.is_empty() {

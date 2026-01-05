@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use pueue_lib::{client::Client, error::Error, network::message::*, settings::Settings};
+use pueue_lib::{Client, error::Error, message::*, settings::Settings};
 use tempfile::tempdir;
 
 use super::handle_response;
@@ -21,7 +21,12 @@ use crate::{
 ///
 /// After receiving the task information, the user can then edit it in their editor.
 /// Upon exiting the text editor, the line will then be read and sent to the server
-pub async fn edit(client: &mut Client, style: &OutputStyle, task_ids: Vec<usize>) -> Result<()> {
+pub async fn edit(
+    client: &mut Client,
+    settings: Settings,
+    style: &OutputStyle,
+    task_ids: Vec<usize>,
+) -> Result<()> {
     // Request the data to edit from the server and issue a task-lock while doing so.
     let init_message = Request::EditRequest(task_ids);
     client.send_request(init_message).await?;
@@ -36,7 +41,7 @@ pub async fn edit(client: &mut Client, style: &OutputStyle, task_ids: Vec<usize>
     };
 
     let task_ids: Vec<usize> = editable_tasks.iter().map(|task| task.id).collect();
-    let result = edit_tasks(&client.settings, editable_tasks);
+    let result = edit_tasks(&settings, editable_tasks);
 
     // Any error while editing will result in the client aborting the editing process.
     // However, as the daemon moves tasks that're edited into the `Locked` state, we cannot simply
@@ -204,7 +209,7 @@ impl Editable for EditableTask {
         let cmd_path = task_dir.join("command");
         let mut output = File::create(&cmd_path)
             .map_err(|err| Error::IoPathError(cmd_path.clone(), "creating command file", err))?;
-        write!(output, "{}", self.command)
+        write!(output, "{}", self.original_command)
             .map_err(|err| Error::IoPathError(cmd_path.clone(), "writing command file", err))?;
 
         // Create cwd file
@@ -221,7 +226,7 @@ impl Editable for EditableTask {
             Error::IoPathError(label_path.clone(), "creating temporary label file", err)
         })?;
         if let Some(label) = &self.label {
-            write!(output, "{}", label)
+            write!(output, "{label}")
                 .map_err(|err| Error::IoPathError(label_path.clone(), "writing label file", err))?;
         }
 
@@ -251,7 +256,7 @@ impl Editable for EditableTask {
         if command.trim().is_empty() {
             bail!("Found empty command after edit for task {}", self.id);
         }
-        self.command = command.trim().to_string();
+        self.original_command = command.trim().to_string();
 
         // Read cwd file
         let cwd_path = task_dir.join("path");

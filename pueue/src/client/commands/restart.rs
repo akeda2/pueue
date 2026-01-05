@@ -1,7 +1,10 @@
+use std::collections::BTreeMap;
+
 use chrono::Local;
+use color_eyre::eyre::ContextCompat;
 use pueue_lib::{
-    client::Client,
-    network::message::*,
+    Client, Settings,
+    message::*,
     state::FilteredTasks,
     task::{Task, TaskResult, TaskStatus},
 };
@@ -19,6 +22,7 @@ use crate::{
 #[allow(clippy::too_many_arguments)]
 pub async fn restart(
     client: &mut Client,
+    settings: Settings,
     task_ids: Vec<usize>,
     all_failed: bool,
     failed_in_group: Option<String>,
@@ -29,7 +33,7 @@ pub async fn restart(
     edit: bool,
 ) -> Result<()> {
     // `not_in_place` superseeds both other configs
-    let in_place = (client.settings.client.restart_in_place || in_place) && !not_in_place;
+    let in_place = (settings.client.restart_in_place || in_place) && !not_in_place;
 
     let new_status = if stashed {
         TaskStatus::Stashed { enqueue_at: None }
@@ -96,28 +100,30 @@ pub async fn restart(
     };
 
     // Get all tasks that should be restarted.
-    let mut tasks: Vec<Task> = filtered_tasks
+    let mut tasks: BTreeMap<usize, Task> = filtered_tasks
         .matching_ids
         .iter()
-        .map(|task_id| state.tasks.get(task_id).unwrap().clone())
+        .map(|task_id| (*task_id, state.tasks.get(task_id).unwrap().clone()))
         .collect();
 
     // If the tasks should be edited, edit them in one go.
     if edit {
-        let mut editable_tasks: Vec<EditableTask> = tasks.iter().map(EditableTask::from).collect();
-        editable_tasks = edit_tasks(&client.settings, editable_tasks)?;
+        let mut editable_tasks: Vec<EditableTask> =
+            tasks.values().map(EditableTask::from).collect();
+        editable_tasks = edit_tasks(&settings, editable_tasks)?;
 
         // Now merge the edited properties back into the tasks.
-        // We simply zip the task and editable task vectors, as we know that they have the same
-        // order.
-        tasks
-            .iter_mut()
-            .zip(editable_tasks.into_iter())
-            .for_each(|(task, edited)| edited.into_task(task));
+        for edited in editable_tasks {
+            let task = tasks.get_mut(&edited.id).context(format!(
+                "Found unexpected task id during editing: {}",
+                edited.id
+            ))?;
+            edited.into_task(task);
+        }
     }
 
     // Go through all restartable commands we found and process them.
-    for mut task in tasks {
+    for (_, mut task) in tasks {
         task.status = new_status.clone();
 
         // Add the tasks to the singular message, if we want to restart the tasks in-place.
@@ -125,7 +131,7 @@ pub async fn restart(
         if in_place {
             restart_message.tasks.push(TaskToRestart {
                 task_id: task.id,
-                command: task.command,
+                original_command: task.original_command,
                 path: task.path,
                 label: task.label,
                 priority: task.priority,
@@ -138,7 +144,7 @@ pub async fn restart(
         // Create an request to send the task to the daemon from the updated info and the old
         // task.
         let add_task_message = AddRequest {
-            command: task.command,
+            command: task.original_command,
             path: task.path,
             envs: task.envs.clone(),
             start_immediately,

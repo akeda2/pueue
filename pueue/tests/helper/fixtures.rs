@@ -7,7 +7,7 @@ use std::{
     process::{Child, Command, Stdio},
 };
 
-use assert_cmd::prelude::*;
+use assert_cmd::cargo_bin;
 use pueue::daemon::run;
 use pueue_lib::settings::*;
 use tempfile::{Builder, TempDir};
@@ -110,7 +110,7 @@ pub async fn standalone_daemon(shared: &Shared) -> Result<Child> {
     let mut envs = HashMap::new();
     envs.insert("PUEUED_TEST_ENV_VARIABLE", "Test");
 
-    let child = Command::cargo_bin("pueued")?
+    let child = Command::new(cargo_bin!("pueued"))
         .arg("--config")
         .arg(shared.pueue_directory().join("pueue.yml").to_str().unwrap())
         .arg("-vvv")
@@ -177,6 +177,14 @@ pub fn daemon_base_setup() -> Result<(Settings, TempDir)> {
     #[allow(deprecated)]
     let daemon = Daemon {
         callback_log_lines: 15,
+        // Explicitly use bash to ensure that everyone uses the same shell
+        // when executing tests. For example, Debian uses `dash` as default shell,
+        // which expectes another syntax. We use `bash` as a common denominator.
+        shell_command: Some(vec![
+            "bash".into(),
+            "-c".into(),
+            "{{ pueue_command_string }}".into(),
+        ]),
         ..Default::default()
     };
 

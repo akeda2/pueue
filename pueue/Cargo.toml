@@ -1,6 +1,6 @@
 [package]
 name = "pueue"
-version = "4.0.0-rc.3"
+version = "4.0.2"
 description = "A cli tool for managing long running shell commands."
 readme = "../README.md"
 keywords = ["command", "parallel", "queue", "shell", "task"]
@@ -23,69 +23,64 @@ harness = false
 name = "save_state"
 
 [dependencies]
+async-trait.workspace = true
 chrono.workspace = true
-clap = { version = "4.5.31", features = [
-    "cargo",
-    "derive",
-    "help",
-    "wrap_help",
-] }
-clap_complete = "4.5.46"
-clap_complete_nushell = "4.5.5"
+clap = { version = "4.5", features = ["cargo", "derive", "help", "wrap_help"] }
+clap_complete = "4.5"
+clap_complete_nushell = "4.5.10"
 color-eyre.workspace = true
 comfy-table = "7"
 command-group.workspace = true
 ctrlc = { version = "3", features = ["termination"] }
 flate2 = "1"
 handlebars.workspace = true
-interim = { version = "0.2.0", features = ["chrono_0_4"] }
-pest = "2.7"
-pest_derive = "2.7"
-pueue-lib = { version = "0.28.1", path = "../pueue_lib", features = ["client"] }
+interim = { version = "0.2", features = ["chrono_0_4"] }
+pest = "2.8"
+pest_derive = "2.8"
+pueue-lib = { version = "0.30", path = "../pueue_lib", features = ["client"] }
+rcgen = "0.14"
+rustls.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+serde_yaml.workspace = true
 shell-escape = "0.1"
 snap.workspace = true
 strum.workspace = true
 tempfile = "3"
 tokio.workspace = true
-toml = "0.8"
+tokio-rustls.workspace = true
+toml = "0.9"
 tracing.workspace = true
-tracing-error = "0.2.1"
-tracing-subscriber = { version = "0.3.19", features = [
-    "chrono",
-    "env-filter",
-    "fmt",
-    "local-time",
-] }
+tracing-error.workspace = true
+tracing-subscriber.workspace = true
 
 [dev-dependencies]
 assert_cmd = "2"
 assert_matches = "1"
 better-panic.workspace = true
-criterion = "0.5"
+ciborium = { workspace = true }
+criterion = "0.7"
 pretty_assertions.workspace = true
-rstest = "0.24"
-serde_yaml.workspace = true
+rstest = "0.26"
 similar-asserts = "1"
 
 # --- Platform specific dependencies ---
 
 # Linux
 [target.'cfg(target_os = "linux")'.dependencies]
-procfs = { version = "0.17", default-features = false }
+procfs = { version = "0.18", default-features = false }
 
 # Linux + Mac OS
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
-libproc = "0.14.10"
+libproc = "0.14.11"
 
 # Windows
 # We don't need any of the default features for crossterm.
 # However, the windows build needs the windows feature enabled.
 [target.'cfg(not(windows))'.dependencies]
-crossterm = { version = "0.28", default-features = false }
+crossterm = { version = "0.29", default-features = false }
 [target.'cfg(windows)'.dependencies]
-crossterm = { version = "0.28", default-features = false, features = [
+crossterm = { version = "0.29", default-features = false, features = [
     "windows",
 ] }
 winapi = { version = "0.3", features = [
@@ -95,7 +90,7 @@ winapi = { version = "0.3", features = [
     "processthreadsapi",
     "tlhelp32",
 ] }
-windows = { version = "0.60.0", features = [
+windows = { version = "0.62.2", features = [
     "Win32_Security",
     "Win32_System_Environment",
     "Win32_System_RemoteDesktop",

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use chrono::{TimeDelta, prelude::*};
 use clap::{ArgAction, Parser, ValueEnum, ValueHint};
 use interim::*;
-use pueue_lib::network::message::Signal;
+use pueue_lib::message::Signal;
 
 use crate::client::commands::WaitTargetStatus;
 
@@ -64,7 +64,7 @@ pub enum SubCommand {
         /// All groups run in parallel and you can specify the amount of parallel tasks for each
         /// group. If no group is specified, the default group will be used.
         ///
-        /// Create groups via the `pueue groups` subcommand
+        /// Create groups via the `pueue group` subcommand
         #[arg(short, long)]
         group: Option<String>,
 
@@ -374,7 +374,7 @@ Examples:
   - `columns=id,status,command status=running start > 2023-05-2112:03:17 order_by command first 5`
 
 The formal syntax is defined here:
-https://github.com/Nukesor/pueue/blob/main/pueue/src/client/query/syntax.pest
+https://github.com/Nukesor/pueue/blob/main/pueue/src/client/commands/state/query/syntax.pest
 
 More documentation is on the query syntax PR:
 https://github.com/Nukesor/pueue/issues/350#issue-1359083118"

@@ -6,8 +6,8 @@ use std::{
 use chrono::Local;
 use crossterm::style::{Attribute, Color};
 use pueue_lib::{
-    client::Client,
-    network::message::TaskSelection,
+    Client,
+    message::TaskSelection,
     state::State,
     task::{Task, TaskResult, TaskStatus},
 };
