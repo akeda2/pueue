@@ -4,14 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## \[4.0.3\] - unreleased
+## \[4.0.5\] - unreleased
+
+### Fix
+
+## \[4.0.4\] - 2026-03-02
+
+### Fix
+
+- Test fixes for armv7/armhf architectures
+- Update dependencies to s390x builds
+
+## \[4.0.3\] - 2026-03-01
 
 ### Fix
 
 - `pueue add` Canonicalize `--working-directory` paths.
 - `pueue start` can force-start stashed tasks. #659
 
-## \[4.0.2\] - 2021-12-19
+### Maintenance
+
+- Replace deprecated `command-group` with `process-wrap` v9. Minimum Rust version updated to 1.87.
+
+## \[4.0.2\] - 2025-12-19
 
 ### Maintenance
 

@@ -4,10 +4,11 @@ use std::{
     fs::{File, canonicalize},
     io::Write,
     path::{Path, PathBuf},
-    process::{Child, Command, Stdio},
+    process::{Command, Stdio},
 };
 
 use assert_cmd::cargo_bin;
+use process_wrap::std::ChildWrapper;
 use pueue::daemon::run;
 use pueue_lib::settings::*;
 use tempfile::{Builder, TempDir};
@@ -67,7 +68,7 @@ pub async fn daemon_with_settings(settings: Settings, tempdir: TempDir) -> Resul
     let mut current_try = 0;
 
     // Wait up to 1s for the unix socket to pop up.
-    let socket_path = settings.shared.unix_socket_path();
+    let socket_path = settings.shared.unix_socket_path()?;
     while current_try < tries {
         sleep_ms(sleep).await;
         if socket_path.exists() {
@@ -104,7 +105,7 @@ async fn run_and_handle_error(pueue_dir: PathBuf, test: bool) -> Result<()> {
 
 /// Spawn the daemon by calling the actual pueued binary.
 /// This function also checks for the pid file and the unix socket to appear.
-pub async fn standalone_daemon(shared: &Shared) -> Result<Child> {
+pub async fn standalone_daemon(shared: &Shared) -> Result<Box<dyn ChildWrapper>> {
     // Inject an environment variable into the daemon.
     // This is used to test that the spawned subprocesses won't inherit the daemon's environment.
     let mut envs = HashMap::new();
@@ -124,11 +125,11 @@ pub async fn standalone_daemon(shared: &Shared) -> Result<Child> {
     let mut current_try = 0;
 
     // Wait up to 1s for the unix socket to pop up.
-    let socket_path = shared.unix_socket_path();
+    let socket_path = shared.unix_socket_path()?;
     while current_try < tries {
         sleep_ms(sleep).await;
         if socket_path.exists() {
-            return Ok(child);
+            return Ok(Box::new(child));
         }
 
         current_try += 1;
