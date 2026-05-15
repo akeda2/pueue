@@ -78,8 +78,6 @@ impl BlockingStream for rustls_connector::TlsStream<TcpStream> {}
 /// 2. Set the client certificate and key
 pub fn get_tls_connector(cert: CertificateDer<'_>) -> Result<TlsConnector, Error> {
     let mut config = RustlsConnectorConfig::default();
-    config.add_parsable_certificates(vec![cert]);
-    let connector = config.connector_with_no_client_auth();
-
-    Ok(connector)
+    config.add_parsable_certificates(vec![cert.into_owned()]);
+    Ok(config.connector_with_no_client_auth()?)
 }
