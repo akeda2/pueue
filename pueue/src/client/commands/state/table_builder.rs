@@ -1,5 +1,5 @@
 use chrono::TimeDelta;
-use comfy_table::{Cell, ContentArrangement, Row, Table, presets::UTF8_HORIZONTAL_ONLY};
+use comfy_table::{Cell, ContentArrangement, Row, Table, presets::NOTHING};
 use crossterm::style::Color;
 use pueue_lib::{
     settings::Settings,
@@ -59,7 +59,7 @@ impl<'a> TableBuilder<'a> {
         let mut table = Table::new();
         table
             .set_content_arrangement(ContentArrangement::Dynamic)
-            .load_preset(UTF8_HORIZONTAL_ONLY)
+            .load_preset(NOTHING)
             .set_header(self.build_header())
             .add_rows(self.build_task_rows(tasks));
 
