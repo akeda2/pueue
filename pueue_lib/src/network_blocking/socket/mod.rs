@@ -56,7 +56,7 @@ impl TryFrom<Shared> for ConnectionSettings<'_> {
         {
             if value.use_unix_socket {
                 return Ok(ConnectionSettings::UnixSocket {
-                    path: value.unix_socket_path(),
+                    path: value.unix_socket_path()?,
                 });
             }
         }
@@ -78,8 +78,6 @@ impl BlockingStream for rustls_connector::TlsStream<TcpStream> {}
 /// 2. Set the client certificate and key
 pub fn get_tls_connector(cert: CertificateDer<'_>) -> Result<TlsConnector, Error> {
     let mut config = RustlsConnectorConfig::default();
-    config.add_parsable_certificates(vec![cert]);
-    let connector = config.connector_with_no_client_auth();
-
-    Ok(connector)
+    config.add_parsable_certificates(vec![cert.into_owned()]);
+    Ok(config.connector_with_no_client_auth()?)
 }

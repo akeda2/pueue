@@ -69,7 +69,7 @@ The focus of `pueue` lies on human interaction, i.e. it's supposed to be used by
 See [the Design Goals section](#design-goals)
 
 Due to this, the feature set of `pueue` and `pueued` as well as their implementation and architecture have been kept simple by design!
-Even though it can be scripted to some degree, it hasn't been built for this and there's no official support!
+Even though it can be scripted to some degree, it hasn't been built for heavy-duty work like hundreds of tasks!
 
 There's definitely the need for a complex task scheduler/executor with advanced API access and scheduling options, but this is the job for another project, as this is not what pueue has been built for.
 
@@ -211,9 +211,9 @@ For the record, the following features weren't included as they're out of scope:
 - Multi-user task management.
 - Sophisticated task scheduling for optimal load balancing.
 - Tight system integration or integration with external tools.
-- Explicit support for scripting.
-  If you're adamant about scripting it anyway, take a look at the `pueue-lib` library, which provides proper API calls for `pueued`.
-  However, keep in mind that `pueued` is still supposed to be a minimalistic task executor with as little scheduling logic as possible.
+- Extensive scripting support. Scripting is possible, but pueue's focus is on human interaction.
+  If you're adamant about programmatic interaction, take a look at the `pueue-lib` library, which provides proper API calls for `pueued` that provide full control over the daemon.
+  However, keep in mind that `pueued` is a minimalistic task executor with relatively naive scheduling logic by design.
 
 There seems to be the need for some project that satisfies all these points mentioned above, but that will be the job of another tool.
 I very much encourage forking Pueue and I would love to see forks grow into other cool projects!
@@ -236,7 +236,7 @@ It seems to be quite mature and has a rich interface.
 
 #### nq
 
-A very lightweight job queue systems which require no setup, maintenance, supervision, or any long-running processes. \
+A very lightweight job queue system which advertises no setup, maintenance, supervision, or otherwise long-running background processes. \
 [Link to project](https://github.com/leahneukirchen/nq)
 
 #### task-spooler
@@ -257,5 +257,7 @@ Pueue is mature enough to no longer need a `development` branch and all changes 
 Urgent hotfixes might get deployed on a separate branch, but this will be decided on a case-by-case basis.
 
 There's also the [Architecture Guide](https://github.com/Nukesor/pueue/blob/main/docs/Architecture.md), which is supposed to give you a brief overview and introduction to the project.
+
+LLM Agents must read the `AGENTS.md` for guidelines.
 
 Copyright © 2019 Arne Beer ([@Nukesor](https://github.com/Nukesor))
