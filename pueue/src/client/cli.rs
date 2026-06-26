@@ -387,6 +387,10 @@ https://github.com/Nukesor/pueue/issues/350#issue-1359083118"
         #[arg(short, long)]
         json: bool,
 
+        /// Show status output without horizontal row separators.
+        #[arg(short, long)]
+        compact: bool,
+
         #[arg(short, long)]
         /// Only show tasks of a specific group
         group: Option<String>,

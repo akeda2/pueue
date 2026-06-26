@@ -1,5 +1,7 @@
 use chrono::TimeDelta;
-use comfy_table::{Cell, ContentArrangement, Row, Table, presets::NOTHING};
+use comfy_table::{
+    Cell, ContentArrangement, Row, Table, presets::NOTHING, presets::UTF8_HORIZONTAL_ONLY,
+};
 use crossterm::style::Color;
 use pueue_lib::{
     settings::Settings,
@@ -14,6 +16,7 @@ use super::{OutputStyle, formatted_start_end, query::Rule, start_of_today};
 pub struct TableBuilder<'a> {
     settings: &'a Settings,
     style: &'a OutputStyle,
+    show_row_separators: bool,
 
     /// Whether the columns to be displayed are explicitly selected by the user.
     /// If that's the case, we won't do any automated checks whether columns should be displayed or
@@ -35,10 +38,11 @@ pub struct TableBuilder<'a> {
 }
 
 impl<'a> TableBuilder<'a> {
-    pub fn new(settings: &'a Settings, style: &'a OutputStyle) -> Self {
+    pub fn new(settings: &'a Settings, style: &'a OutputStyle, show_row_separators: bool) -> Self {
         Self {
             settings,
             style,
+            show_row_separators,
             selected_columns: false,
             id: true,
             status: true,
@@ -57,9 +61,13 @@ impl<'a> TableBuilder<'a> {
         self.determine_special_columns(tasks);
 
         let mut table = Table::new();
+        if self.show_row_separators {
+            table.load_preset(UTF8_HORIZONTAL_ONLY);
+        } else {
+            table.load_preset(NOTHING);
+        }
         table
             .set_content_arrangement(ContentArrangement::Dynamic)
-            .load_preset(NOTHING)
             .set_header(self.build_header())
             .add_rows(self.build_task_rows(tasks));
 

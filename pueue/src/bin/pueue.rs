@@ -65,6 +65,7 @@ async fn main() -> Result<()> {
     // If no subcommand is given, we default to the `status` subcommand without any arguments.
     let subcommand = opt.cmd.unwrap_or(SubCommand::Status {
         json: false,
+        compact: false,
         group: None,
         query: Vec::new(),
     });

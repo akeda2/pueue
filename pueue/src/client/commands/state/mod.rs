@@ -26,12 +26,22 @@ pub async fn state(
     style: &OutputStyle,
     query: Vec<String>,
     json: bool,
+    compact: bool,
     group: Option<String>,
 ) -> Result<()> {
     let state = get_state(client).await?;
     let tasks = state.tasks.values().cloned().collect();
 
-    let output = print_state(state, tasks, style, &settings, json, group, Some(query))?;
+    let output = print_state(
+        state,
+        tasks,
+        style,
+        &settings,
+        json,
+        compact,
+        group,
+        Some(query),
+    )?;
     println!("{output}");
 
     Ok(())
@@ -48,12 +58,13 @@ fn print_state(
     style: &OutputStyle,
     settings: &Settings,
     json: bool,
+    compact: bool,
     group: Option<String>,
     query: Option<Vec<String>>,
 ) -> Result<String> {
     let mut output = String::new();
 
-    let mut table_builder = TableBuilder::new(settings, style);
+    let mut table_builder = TableBuilder::new(settings, style, !compact);
 
     if let Some(query) = &query {
         let query_result = apply_query(&query.join(" "), &group)?;
