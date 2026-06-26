@@ -391,6 +391,10 @@ https://github.com/Nukesor/pueue/issues/350#issue-1359083118"
         #[arg(short, long)]
         compact: bool,
 
+        /// Truncate command and path columns to fit into the current terminal width.
+        #[arg(short = 't', long)]
+        truncate: bool,
+
         #[arg(short, long)]
         /// Only show tasks of a specific group
         group: Option<String>,

@@ -27,6 +27,7 @@ pub async fn state(
     query: Vec<String>,
     json: bool,
     compact: bool,
+    truncate: bool,
     group: Option<String>,
 ) -> Result<()> {
     let state = get_state(client).await?;
@@ -39,6 +40,7 @@ pub async fn state(
         &settings,
         json,
         compact,
+        truncate,
         group,
         Some(query),
     )?;
@@ -59,12 +61,13 @@ fn print_state(
     settings: &Settings,
     json: bool,
     compact: bool,
+    truncate: bool,
     group: Option<String>,
     query: Option<Vec<String>>,
 ) -> Result<String> {
     let mut output = String::new();
 
-    let mut table_builder = TableBuilder::new(settings, style, !compact);
+    let mut table_builder = TableBuilder::new(settings, style, !compact, truncate);
 
     if let Some(query) = &query {
         let query_result = apply_query(&query.join(" "), &group)?;

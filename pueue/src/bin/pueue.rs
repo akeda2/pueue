@@ -66,6 +66,7 @@ async fn main() -> Result<()> {
     let subcommand = opt.cmd.unwrap_or(SubCommand::Status {
         json: false,
         compact: false,
+        truncate: false,
         group: None,
         query: Vec::new(),
     });

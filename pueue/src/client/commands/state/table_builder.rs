@@ -3,6 +3,7 @@ use comfy_table::{
     Cell, ContentArrangement, Row, Table, presets::NOTHING, presets::UTF8_HORIZONTAL_ONLY,
 };
 use crossterm::style::Color;
+use crossterm::terminal;
 use pueue_lib::{
     settings::Settings,
     task::{Task, TaskResult, TaskStatus},
@@ -17,6 +18,7 @@ pub struct TableBuilder<'a> {
     settings: &'a Settings,
     style: &'a OutputStyle,
     show_row_separators: bool,
+    truncate_to_terminal_width: bool,
 
     /// Whether the columns to be displayed are explicitly selected by the user.
     /// If that's the case, we won't do any automated checks whether columns should be displayed or
@@ -38,11 +40,17 @@ pub struct TableBuilder<'a> {
 }
 
 impl<'a> TableBuilder<'a> {
-    pub fn new(settings: &'a Settings, style: &'a OutputStyle, show_row_separators: bool) -> Self {
+    pub fn new(
+        settings: &'a Settings,
+        style: &'a OutputStyle,
+        show_row_separators: bool,
+        truncate_to_terminal_width: bool,
+    ) -> Self {
         Self {
             settings,
             style,
             show_row_separators,
+            truncate_to_terminal_width,
             selected_columns: false,
             id: true,
             status: true,
@@ -196,6 +204,8 @@ impl<'a> TableBuilder<'a> {
 
     fn build_task_rows(&self, tasks: &[Task]) -> Vec<Row> {
         let mut rows = Vec::new();
+        let truncation = self.get_truncation_widths(tasks);
+
         // Add rows one by one.
         for task in tasks.iter() {
             let mut row = Row::new();
@@ -269,15 +279,19 @@ impl<'a> TableBuilder<'a> {
 
             // Add command and path.
             if self.command {
-                if self.settings.client.show_expanded_aliases {
-                    row.add_cell(Cell::new(&task.command));
+                let command = if self.settings.client.show_expanded_aliases {
+                    task.command.as_str()
                 } else {
-                    row.add_cell(Cell::new(&task.original_command));
-                }
+                    task.original_command.as_str()
+                };
+                let command = truncate_text(command, truncation.command);
+                row.add_cell(Cell::new(command));
             }
 
             if self.path {
-                row.add_cell(Cell::new(task.path.to_string_lossy()));
+                let path = task.path.to_string_lossy();
+                let path = truncate_text(&path, truncation.path);
+                row.add_cell(Cell::new(path));
             }
 
             // Add start and end info
@@ -293,5 +307,243 @@ impl<'a> TableBuilder<'a> {
         }
 
         rows
+    }
+
+    fn get_truncation_widths(&self, tasks: &[Task]) -> TruncationWidths {
+        if !self.truncate_to_terminal_width {
+            return TruncationWidths::default();
+        }
+
+        let Ok((width, _height)) = terminal::size() else {
+            return TruncationWidths::default();
+        };
+
+        // We approximate table overhead from column spacing and choose conservative widths.
+        let terminal_width = usize::from(width);
+        let mut fixed_content_width: usize = 0;
+        let mut visible_columns: usize = 0;
+
+        if self.id {
+            visible_columns += 1;
+            fixed_content_width += std::cmp::max(
+                "Id".chars().count(),
+                tasks
+                    .iter()
+                    .map(|task| task.id.to_string().chars().count())
+                    .max()
+                    .unwrap_or(0),
+            );
+        }
+        if self.status {
+            visible_columns += 1;
+            fixed_content_width += std::cmp::max(
+                "Status".chars().count(),
+                tasks
+                    .iter()
+                    .map(|task| status_text(task).chars().count())
+                    .max()
+                    .unwrap_or(0),
+            );
+        }
+        if self.priority {
+            visible_columns += 1;
+            fixed_content_width += std::cmp::max(
+                "Prio".chars().count(),
+                tasks
+                    .iter()
+                    .map(|task| task.priority.to_string().chars().count())
+                    .max()
+                    .unwrap_or(0),
+            );
+        }
+        if self.enqueue_at {
+            visible_columns += 1;
+            fixed_content_width += std::cmp::max(
+                "Enqueue At".chars().count(),
+                tasks
+                    .iter()
+                    .map(|task| enqueue_text(task, self.settings).chars().count())
+                    .max()
+                    .unwrap_or(0),
+            );
+        }
+        if self.dependencies {
+            visible_columns += 1;
+            fixed_content_width += std::cmp::max(
+                "Deps".chars().count(),
+                tasks
+                    .iter()
+                    .map(|task| {
+                        task.dependencies
+                            .iter()
+                            .map(|id| id.to_string())
+                            .collect::<Vec<String>>()
+                            .join(", ")
+                            .chars()
+                            .count()
+                    })
+                    .max()
+                    .unwrap_or(0),
+            );
+        }
+        if self.label {
+            visible_columns += 1;
+            fixed_content_width += std::cmp::max(
+                "Label".chars().count(),
+                tasks
+                    .iter()
+                    .map(|task| task.label.as_deref().unwrap_or_default().chars().count())
+                    .max()
+                    .unwrap_or(0),
+            );
+        }
+        if self.start {
+            visible_columns += 1;
+            fixed_content_width += std::cmp::max(
+                "Start".chars().count(),
+                tasks
+                    .iter()
+                    .map(|task| formatted_start_end(task, self.settings).0.chars().count())
+                    .max()
+                    .unwrap_or(0),
+            );
+        }
+        if self.end {
+            visible_columns += 1;
+            fixed_content_width += std::cmp::max(
+                "End".chars().count(),
+                tasks
+                    .iter()
+                    .map(|task| formatted_start_end(task, self.settings).1.chars().count())
+                    .max()
+                    .unwrap_or(0),
+            );
+        }
+
+        let mut command = None;
+        let mut path = None;
+        if self.command {
+            visible_columns += 1;
+            command = Some("Command".chars().count());
+        }
+        if self.path {
+            visible_columns += 1;
+            path = Some("Path".chars().count());
+        }
+
+        // There are two spaces between columns plus one leading space.
+        let spacing_overhead = visible_columns.saturating_sub(1) * 2 + 1;
+        let fixed_total = fixed_content_width + spacing_overhead;
+        let available = terminal_width.saturating_sub(fixed_total);
+
+        let mut widths = TruncationWidths::default();
+        let min_command = command.unwrap_or(0);
+        let min_path = path.unwrap_or(0);
+
+        if self.command && self.path {
+            let min_total = min_command + min_path;
+            if available <= min_total {
+                widths.command = Some(min_command);
+                widths.path = Some(min_path);
+                return widths;
+            }
+
+            let dynamic = available - min_total;
+            let command_extra = dynamic * 2 / 3;
+            widths.command = Some(min_command + command_extra);
+            widths.path = Some(min_path + (dynamic - command_extra));
+            return widths;
+        }
+
+        if self.command {
+            widths.command = Some(available.max(min_command));
+        }
+        if self.path {
+            widths.path = Some(available.max(min_path));
+        }
+
+        widths
+    }
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+struct TruncationWidths {
+    command: Option<usize>,
+    path: Option<usize>,
+}
+
+fn truncate_text(text: &str, width: Option<usize>) -> String {
+    let Some(width) = width else {
+        return text.to_string();
+    };
+    if text.chars().count() <= width {
+        return text.to_string();
+    }
+
+    if width <= 3 {
+        return "..."[..width].to_string();
+    }
+
+    let keep = width - 3;
+    let left_keep = keep / 2;
+    let right_keep = keep - left_keep;
+    let left = text.chars().take(left_keep).collect::<String>();
+    let right = text
+        .chars()
+        .rev()
+        .take(right_keep)
+        .collect::<Vec<char>>()
+        .into_iter()
+        .rev()
+        .collect::<String>();
+    format!("{left}...{right}")
+}
+
+fn status_text(task: &Task) -> String {
+    let status_string = task.status.to_string();
+    match &task.status {
+        TaskStatus::Done { result, .. } => match result {
+            TaskResult::Success => TaskResult::Success.to_string(),
+            TaskResult::DependencyFailed => "Dependency failed".to_string(),
+            TaskResult::FailedToSpawn(_) => "Failed to spawn".to_string(),
+            TaskResult::Failed(code) => format!("Failed ({code})"),
+            _ => result.to_string(),
+        },
+        _ => status_string,
+    }
+}
+
+fn enqueue_text(task: &Task, settings: &Settings) -> String {
+    if let TaskStatus::Stashed {
+        enqueue_at: Some(enqueue_at),
+    } = task.status
+    {
+        let enqueue_today = enqueue_at <= start_of_today() + TimeDelta::try_days(1).unwrap();
+        if enqueue_today {
+            enqueue_at
+                .format(&settings.client.status_time_format)
+                .to_string()
+        } else {
+            enqueue_at
+                .format(&settings.client.status_datetime_format)
+                .to_string()
+        }
+    } else {
+        String::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::truncate_text;
+
+    #[test]
+    fn truncate_text_keeps_short_text() {
+        assert_eq!(truncate_text("abc", Some(5)), "abc");
+    }
+
+    #[test]
+    fn truncate_text_applies_ellipsis() {
+        assert_eq!(truncate_text("abcdefgh", Some(6)), "a...gh");
     }
 }
