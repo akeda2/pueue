@@ -431,8 +431,9 @@ impl<'a> TableBuilder<'a> {
             path = Some("Path".chars().count());
         }
 
-        // There are two spaces between columns plus one leading space.
-        let spacing_overhead = visible_columns.saturating_sub(1) * 2 + 1;
+        // Keep a conservative spacing overhead. Comfy-table applies additional cell paddings,
+        // which can otherwise cause wrapped words in heavily truncated command columns.
+        let spacing_overhead = visible_columns * 2 + 3;
         let fixed_total = fixed_content_width + spacing_overhead;
         let available = terminal_width.saturating_sub(fixed_total);
 
@@ -496,6 +497,8 @@ fn truncate_text(text: &str, width: Option<usize>) -> String {
         .into_iter()
         .rev()
         .collect::<String>();
+    let left = left.trim_end();
+    let right = right.trim_start();
     format!("{left}...{right}")
 }
 
@@ -545,5 +548,10 @@ mod tests {
     #[test]
     fn truncate_text_applies_ellipsis() {
         assert_eq!(truncate_text("abcdefgh", Some(6)), "a...gh");
+    }
+
+    #[test]
+    fn truncate_text_trims_whitespace_around_split() {
+        assert_eq!(truncate_text("1234 5678", Some(7)), "12...78");
     }
 }
