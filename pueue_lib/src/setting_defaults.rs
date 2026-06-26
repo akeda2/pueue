@@ -20,7 +20,7 @@ pub(crate) fn default_status_time_format() -> String {
 }
 
 pub(crate) fn default_status_datetime_format() -> String {
-    "%Y-%m-%d\n%H:%M:%S".to_string()
+    "%Y-%m-%d %H:%M:%S".to_string()
 }
 
 pub(crate) fn default_callback_log_lines() -> usize {
