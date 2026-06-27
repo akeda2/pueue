@@ -424,11 +424,37 @@ impl<'a> TableBuilder<'a> {
         let mut path = None;
         if self.command {
             visible_columns += 1;
-            command = Some("Command".chars().count());
+            let min = "Command".chars().count();
+            let desired = std::cmp::max(
+                min,
+                tasks
+                    .iter()
+                    .map(|task| {
+                        if self.settings.client.show_expanded_aliases {
+                            task.command.as_str()
+                        } else {
+                            task.original_command.as_str()
+                        }
+                        .chars()
+                        .count()
+                    })
+                    .max()
+                    .unwrap_or(0),
+            );
+            command = Some(VariableColumnWidths { min, desired });
         }
         if self.path {
             visible_columns += 1;
-            path = Some("Path".chars().count());
+            let min = "Path".chars().count();
+            let desired = std::cmp::max(
+                min,
+                tasks
+                    .iter()
+                    .map(|task| task.path.to_string_lossy().chars().count())
+                    .max()
+                    .unwrap_or(0),
+            );
+            path = Some(VariableColumnWidths { min, desired });
         }
 
         // Keep a conservative spacing overhead. Comfy-table applies additional cell paddings,
@@ -437,33 +463,7 @@ impl<'a> TableBuilder<'a> {
         let fixed_total = fixed_content_width + spacing_overhead;
         let available = terminal_width.saturating_sub(fixed_total);
 
-        let mut widths = TruncationWidths::default();
-        let min_command = command.unwrap_or(0);
-        let min_path = path.unwrap_or(0);
-
-        if self.command && self.path {
-            let min_total = min_command + min_path;
-            if available <= min_total {
-                widths.command = Some(min_command);
-                widths.path = Some(min_path);
-                return widths;
-            }
-
-            let dynamic = available - min_total;
-            let command_extra = dynamic * 2 / 3;
-            widths.command = Some(min_command + command_extra);
-            widths.path = Some(min_path + (dynamic - command_extra));
-            return widths;
-        }
-
-        if self.command {
-            widths.command = Some(available.max(min_command));
-        }
-        if self.path {
-            widths.path = Some(available.max(min_path));
-        }
-
-        widths
+        allocate_variable_widths(available, command, path)
     }
 }
 
@@ -471,6 +471,64 @@ impl<'a> TableBuilder<'a> {
 struct TruncationWidths {
     command: Option<usize>,
     path: Option<usize>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct VariableColumnWidths {
+    min: usize,
+    desired: usize,
+}
+
+fn allocate_variable_widths(
+    available: usize,
+    command: Option<VariableColumnWidths>,
+    path: Option<VariableColumnWidths>,
+) -> TruncationWidths {
+    let mut widths = TruncationWidths::default();
+
+    match (command, path) {
+        (Some(command), Some(path)) => {
+            let min_total = command.min + path.min;
+            if available <= min_total {
+                widths.command = Some(command.min);
+                widths.path = Some(path.min);
+                return widths;
+            }
+
+            let desired_total = command.desired + path.desired;
+            if available >= desired_total {
+                widths.command = Some(command.desired);
+                widths.path = Some(path.desired);
+                return widths;
+            }
+
+            let extra_available = available - min_total;
+            let command_demand = command.desired.saturating_sub(command.min);
+            let path_demand = path.desired.saturating_sub(path.min);
+            let total_demand = command_demand + path_demand;
+
+            if total_demand == 0 {
+                widths.command = Some(command.min);
+                widths.path = Some(path.min);
+                return widths;
+            }
+
+            let command_extra = extra_available * command_demand / total_demand;
+            let path_extra = extra_available - command_extra;
+
+            widths.command = Some(command.min + command_extra);
+            widths.path = Some(path.min + path_extra);
+        }
+        (Some(command), None) => {
+            widths.command = Some(std::cmp::min(available.max(command.min), command.desired));
+        }
+        (None, Some(path)) => {
+            widths.path = Some(std::cmp::min(available.max(path.min), path.desired));
+        }
+        (None, None) => (),
+    }
+
+    widths
 }
 
 fn truncate_text(text: &str, width: Option<usize>) -> String {
@@ -538,7 +596,7 @@ fn enqueue_text(task: &Task, settings: &Settings) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::truncate_text;
+    use super::{VariableColumnWidths, allocate_variable_widths, truncate_text};
 
     #[test]
     fn truncate_text_keeps_short_text() {
@@ -553,5 +611,41 @@ mod tests {
     #[test]
     fn truncate_text_trims_whitespace_around_split() {
         assert_eq!(truncate_text("1234 5678", Some(7)), "12...78");
+    }
+
+    #[test]
+    fn allocation_prefers_column_with_higher_demand() {
+        let widths = allocate_variable_widths(
+            40,
+            Some(VariableColumnWidths {
+                min: 7,
+                desired: 10,
+            }),
+            Some(VariableColumnWidths {
+                min: 4,
+                desired: 35,
+            }),
+        );
+
+        assert_eq!(widths.command, Some(9));
+        assert_eq!(widths.path, Some(31));
+    }
+
+    #[test]
+    fn allocation_uses_desired_when_enough_space() {
+        let widths = allocate_variable_widths(
+            80,
+            Some(VariableColumnWidths {
+                min: 7,
+                desired: 12,
+            }),
+            Some(VariableColumnWidths {
+                min: 4,
+                desired: 16,
+            }),
+        );
+
+        assert_eq!(widths.command, Some(12));
+        assert_eq!(widths.path, Some(16));
     }
 }
