@@ -276,8 +276,17 @@ pub async fn handle_command(
             group,
             all,
         } => start(client, style, task_ids, group, all).await,
-        SubCommand::Status { query, json, group } => {
-            state(client, settings, style, query, json, group).await
+        SubCommand::Status {
+            query,
+            json,
+            compact,
+            truncate,
+            group,
+        } => {
+            state(
+                client, settings, style, query, json, compact, truncate, group,
+            )
+            .await
         }
         SubCommand::Switch {
             task_id_1,

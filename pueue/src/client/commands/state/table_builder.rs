@@ -1,6 +1,9 @@
 use chrono::TimeDelta;
-use comfy_table::{Cell, ContentArrangement, Row, Table, presets::UTF8_HORIZONTAL_ONLY};
+use comfy_table::{
+    Cell, ContentArrangement, Row, Table, presets::NOTHING, presets::UTF8_HORIZONTAL_ONLY,
+};
 use crossterm::style::Color;
+use crossterm::terminal;
 use pueue_lib::{
     settings::Settings,
     task::{Task, TaskResult, TaskStatus},
@@ -14,6 +17,8 @@ use super::{OutputStyle, formatted_start_end, query::Rule, start_of_today};
 pub struct TableBuilder<'a> {
     settings: &'a Settings,
     style: &'a OutputStyle,
+    show_row_separators: bool,
+    truncate_to_terminal_width: bool,
 
     /// Whether the columns to be displayed are explicitly selected by the user.
     /// If that's the case, we won't do any automated checks whether columns should be displayed or
@@ -35,10 +40,17 @@ pub struct TableBuilder<'a> {
 }
 
 impl<'a> TableBuilder<'a> {
-    pub fn new(settings: &'a Settings, style: &'a OutputStyle) -> Self {
+    pub fn new(
+        settings: &'a Settings,
+        style: &'a OutputStyle,
+        show_row_separators: bool,
+        truncate_to_terminal_width: bool,
+    ) -> Self {
         Self {
             settings,
             style,
+            show_row_separators,
+            truncate_to_terminal_width,
             selected_columns: false,
             id: true,
             status: true,
@@ -57,9 +69,13 @@ impl<'a> TableBuilder<'a> {
         self.determine_special_columns(tasks);
 
         let mut table = Table::new();
+        if self.show_row_separators {
+            table.load_preset(UTF8_HORIZONTAL_ONLY);
+        } else {
+            table.load_preset(NOTHING);
+        }
         table
             .set_content_arrangement(ContentArrangement::Dynamic)
-            .load_preset(UTF8_HORIZONTAL_ONLY)
             .set_header(self.build_header())
             .add_rows(self.build_task_rows(tasks));
 
@@ -188,6 +204,8 @@ impl<'a> TableBuilder<'a> {
 
     fn build_task_rows(&self, tasks: &[Task]) -> Vec<Row> {
         let mut rows = Vec::new();
+        let truncation = self.get_truncation_widths(tasks);
+
         // Add rows one by one.
         for task in tasks.iter() {
             let mut row = Row::new();
@@ -261,15 +279,19 @@ impl<'a> TableBuilder<'a> {
 
             // Add command and path.
             if self.command {
-                if self.settings.client.show_expanded_aliases {
-                    row.add_cell(Cell::new(&task.command));
+                let command = if self.settings.client.show_expanded_aliases {
+                    task.command.as_str()
                 } else {
-                    row.add_cell(Cell::new(&task.original_command));
-                }
+                    task.original_command.as_str()
+                };
+                let command = truncate_text(command, truncation.command);
+                row.add_cell(Cell::new(command));
             }
 
             if self.path {
-                row.add_cell(Cell::new(task.path.to_string_lossy()));
+                let path = task.path.to_string_lossy();
+                let path = truncate_text(&path, truncation.path);
+                row.add_cell(Cell::new(path));
             }
 
             // Add start and end info
@@ -285,5 +307,345 @@ impl<'a> TableBuilder<'a> {
         }
 
         rows
+    }
+
+    fn get_truncation_widths(&self, tasks: &[Task]) -> TruncationWidths {
+        if !self.truncate_to_terminal_width {
+            return TruncationWidths::default();
+        }
+
+        let Ok((width, _height)) = terminal::size() else {
+            return TruncationWidths::default();
+        };
+
+        // We approximate table overhead from column spacing and choose conservative widths.
+        let terminal_width = usize::from(width);
+        let mut fixed_content_width: usize = 0;
+        let mut visible_columns: usize = 0;
+
+        if self.id {
+            visible_columns += 1;
+            fixed_content_width += std::cmp::max(
+                "Id".chars().count(),
+                tasks
+                    .iter()
+                    .map(|task| task.id.to_string().chars().count())
+                    .max()
+                    .unwrap_or(0),
+            );
+        }
+        if self.status {
+            visible_columns += 1;
+            fixed_content_width += std::cmp::max(
+                "Status".chars().count(),
+                tasks
+                    .iter()
+                    .map(|task| status_text(task).chars().count())
+                    .max()
+                    .unwrap_or(0),
+            );
+        }
+        if self.priority {
+            visible_columns += 1;
+            fixed_content_width += std::cmp::max(
+                "Prio".chars().count(),
+                tasks
+                    .iter()
+                    .map(|task| task.priority.to_string().chars().count())
+                    .max()
+                    .unwrap_or(0),
+            );
+        }
+        if self.enqueue_at {
+            visible_columns += 1;
+            fixed_content_width += std::cmp::max(
+                "Enqueue At".chars().count(),
+                tasks
+                    .iter()
+                    .map(|task| enqueue_text(task, self.settings).chars().count())
+                    .max()
+                    .unwrap_or(0),
+            );
+        }
+        if self.dependencies {
+            visible_columns += 1;
+            fixed_content_width += std::cmp::max(
+                "Deps".chars().count(),
+                tasks
+                    .iter()
+                    .map(|task| {
+                        task.dependencies
+                            .iter()
+                            .map(|id| id.to_string())
+                            .collect::<Vec<String>>()
+                            .join(", ")
+                            .chars()
+                            .count()
+                    })
+                    .max()
+                    .unwrap_or(0),
+            );
+        }
+        if self.label {
+            visible_columns += 1;
+            fixed_content_width += std::cmp::max(
+                "Label".chars().count(),
+                tasks
+                    .iter()
+                    .map(|task| task.label.as_deref().unwrap_or_default().chars().count())
+                    .max()
+                    .unwrap_or(0),
+            );
+        }
+        if self.start {
+            visible_columns += 1;
+            fixed_content_width += std::cmp::max(
+                "Start".chars().count(),
+                tasks
+                    .iter()
+                    .map(|task| formatted_start_end(task, self.settings).0.chars().count())
+                    .max()
+                    .unwrap_or(0),
+            );
+        }
+        if self.end {
+            visible_columns += 1;
+            fixed_content_width += std::cmp::max(
+                "End".chars().count(),
+                tasks
+                    .iter()
+                    .map(|task| formatted_start_end(task, self.settings).1.chars().count())
+                    .max()
+                    .unwrap_or(0),
+            );
+        }
+
+        let mut command = None;
+        let mut path = None;
+        if self.command {
+            visible_columns += 1;
+            let min = "Command".chars().count();
+            let desired = std::cmp::max(
+                min,
+                tasks
+                    .iter()
+                    .map(|task| {
+                        if self.settings.client.show_expanded_aliases {
+                            task.command.as_str()
+                        } else {
+                            task.original_command.as_str()
+                        }
+                        .chars()
+                        .count()
+                    })
+                    .max()
+                    .unwrap_or(0),
+            );
+            command = Some(VariableColumnWidths { min, desired });
+        }
+        if self.path {
+            visible_columns += 1;
+            let min = "Path".chars().count();
+            let desired = std::cmp::max(
+                min,
+                tasks
+                    .iter()
+                    .map(|task| task.path.to_string_lossy().chars().count())
+                    .max()
+                    .unwrap_or(0),
+            );
+            path = Some(VariableColumnWidths { min, desired });
+        }
+
+        // Keep a conservative spacing overhead. Comfy-table applies additional cell paddings,
+        // which can otherwise cause wrapped words in heavily truncated command columns.
+        let spacing_overhead = visible_columns * 2 + 3;
+        let fixed_total = fixed_content_width + spacing_overhead;
+        let available = terminal_width.saturating_sub(fixed_total);
+
+        allocate_variable_widths(available, command, path)
+    }
+}
+
+#[derive(Default, Debug, Clone, Copy)]
+struct TruncationWidths {
+    command: Option<usize>,
+    path: Option<usize>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct VariableColumnWidths {
+    min: usize,
+    desired: usize,
+}
+
+fn allocate_variable_widths(
+    available: usize,
+    command: Option<VariableColumnWidths>,
+    path: Option<VariableColumnWidths>,
+) -> TruncationWidths {
+    let mut widths = TruncationWidths::default();
+
+    match (command, path) {
+        (Some(command), Some(path)) => {
+            let min_total = command.min + path.min;
+            if available <= min_total {
+                widths.command = Some(command.min);
+                widths.path = Some(path.min);
+                return widths;
+            }
+
+            let desired_total = command.desired + path.desired;
+            if available >= desired_total {
+                widths.command = Some(command.desired);
+                widths.path = Some(path.desired);
+                return widths;
+            }
+
+            let extra_available = available - min_total;
+            let command_demand = command.desired.saturating_sub(command.min);
+            let path_demand = path.desired.saturating_sub(path.min);
+            let total_demand = command_demand + path_demand;
+
+            if total_demand == 0 {
+                widths.command = Some(command.min);
+                widths.path = Some(path.min);
+                return widths;
+            }
+
+            let command_extra = extra_available * command_demand / total_demand;
+            let path_extra = extra_available - command_extra;
+
+            widths.command = Some(command.min + command_extra);
+            widths.path = Some(path.min + path_extra);
+        }
+        (Some(command), None) => {
+            widths.command = Some(std::cmp::min(available.max(command.min), command.desired));
+        }
+        (None, Some(path)) => {
+            widths.path = Some(std::cmp::min(available.max(path.min), path.desired));
+        }
+        (None, None) => (),
+    }
+
+    widths
+}
+
+fn truncate_text(text: &str, width: Option<usize>) -> String {
+    let Some(width) = width else {
+        return text.to_string();
+    };
+    if text.chars().count() <= width {
+        return text.to_string();
+    }
+
+    if width <= 3 {
+        return "..."[..width].to_string();
+    }
+
+    let keep = width - 3;
+    let left_keep = keep / 2;
+    let right_keep = keep - left_keep;
+    let left = text.chars().take(left_keep).collect::<String>();
+    let right = text
+        .chars()
+        .rev()
+        .take(right_keep)
+        .collect::<Vec<char>>()
+        .into_iter()
+        .rev()
+        .collect::<String>();
+    let left = left.trim_end();
+    let right = right.trim_start();
+    format!("{left}...{right}")
+}
+
+fn status_text(task: &Task) -> String {
+    let status_string = task.status.to_string();
+    match &task.status {
+        TaskStatus::Done { result, .. } => match result {
+            TaskResult::Success => TaskResult::Success.to_string(),
+            TaskResult::DependencyFailed => "Dependency failed".to_string(),
+            TaskResult::FailedToSpawn(_) => "Failed to spawn".to_string(),
+            TaskResult::Failed(code) => format!("Failed ({code})"),
+            _ => result.to_string(),
+        },
+        _ => status_string,
+    }
+}
+
+fn enqueue_text(task: &Task, settings: &Settings) -> String {
+    if let TaskStatus::Stashed {
+        enqueue_at: Some(enqueue_at),
+    } = task.status
+    {
+        let enqueue_today = enqueue_at <= start_of_today() + TimeDelta::try_days(1).unwrap();
+        if enqueue_today {
+            enqueue_at
+                .format(&settings.client.status_time_format)
+                .to_string()
+        } else {
+            enqueue_at
+                .format(&settings.client.status_datetime_format)
+                .to_string()
+        }
+    } else {
+        String::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{VariableColumnWidths, allocate_variable_widths, truncate_text};
+
+    #[test]
+    fn truncate_text_keeps_short_text() {
+        assert_eq!(truncate_text("abc", Some(5)), "abc");
+    }
+
+    #[test]
+    fn truncate_text_applies_ellipsis() {
+        assert_eq!(truncate_text("abcdefgh", Some(6)), "a...gh");
+    }
+
+    #[test]
+    fn truncate_text_trims_whitespace_around_split() {
+        assert_eq!(truncate_text("1234 5678", Some(7)), "12...78");
+    }
+
+    #[test]
+    fn allocation_prefers_column_with_higher_demand() {
+        let widths = allocate_variable_widths(
+            40,
+            Some(VariableColumnWidths {
+                min: 7,
+                desired: 10,
+            }),
+            Some(VariableColumnWidths {
+                min: 4,
+                desired: 35,
+            }),
+        );
+
+        assert_eq!(widths.command, Some(9));
+        assert_eq!(widths.path, Some(31));
+    }
+
+    #[test]
+    fn allocation_uses_desired_when_enough_space() {
+        let widths = allocate_variable_widths(
+            80,
+            Some(VariableColumnWidths {
+                min: 7,
+                desired: 12,
+            }),
+            Some(VariableColumnWidths {
+                min: 4,
+                desired: 16,
+            }),
+        );
+
+        assert_eq!(widths.command, Some(12));
+        assert_eq!(widths.path, Some(16));
     }
 }

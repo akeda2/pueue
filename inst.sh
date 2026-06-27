@@ -23,8 +23,9 @@ popd
 # Install pueue and pueued, add bash-completions:
 cont "(re-)Install to /usr/bin/ and (re)add bash-completions to /usr/share/bash-completions/completions/?" \
 	&& { sudo install -m 755 target/release/pueue target/release/pueued /usr/bin \
-	&& sudo pueue completions bash /usr/share/bash-completion/completions \
-	&& echo "Done! If you want additional shell completions, run \"pueue completions <shell> <target-path>\"";}
+		&& sudo install -m 755 pueue-status-compact.sh /usr/bin \
+		&& sudo pueue completions bash /usr/share/bash-completion/completions \
+		&& echo "Done! If you want additional shell completions, run \"pueue completions <shell> <target-path>\"";}
 # Enable service, start with "systemctl start --user pueued.service":
 cont "(re-)Copy service to /etc/systemd/user and enable+(re)start service?" \
 	&& { sudo cp utils/pueued.service /etc/systemd/user/ \
