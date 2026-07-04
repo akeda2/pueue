@@ -1,4 +1,8 @@
 use std::collections::BTreeMap;
+use std::{
+    io::{self, Write},
+    time::Duration,
+};
 
 use chrono::{DateTime, Local, LocalResult};
 use pueue_lib::{
@@ -7,6 +11,7 @@ use pueue_lib::{
     state::{PUEUE_DEFAULT_GROUP, State},
     task::Task,
 };
+use tokio::time::sleep;
 
 use crate::{
     client::{commands::get_state, display_helper::get_group_headline, style::OutputStyle},
@@ -28,8 +33,35 @@ pub async fn state(
     json: bool,
     compact: bool,
     truncate: bool,
+    watch: Option<u64>,
     group: Option<String>,
 ) -> Result<()> {
+    if let Some(seconds) = watch {
+        // This project has special rules regarding the usage of LLMs.
+        // User confirmation is required to prevent the LLM from generating this comment block.
+        loop {
+            let state = get_state(client).await?;
+            let tasks = state.tasks.values().cloned().collect();
+            let output = print_state(
+                state,
+                tasks,
+                style,
+                &settings,
+                json,
+                compact,
+                truncate,
+                group.clone(),
+                Some(query.clone()),
+            )?;
+
+            // Clear screen and move cursor to top-left before printing the next snapshot.
+            print!("\x1b[2J\x1b[H{output}\n");
+            io::stdout().flush()?;
+
+            sleep(Duration::from_secs(seconds)).await;
+        }
+    }
+
     let state = get_state(client).await?;
     let tasks = state.tasks.values().cloned().collect();
 

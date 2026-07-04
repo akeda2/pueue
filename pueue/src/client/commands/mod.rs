@@ -281,10 +281,11 @@ pub async fn handle_command(
             json,
             compact,
             truncate,
+            watch,
             group,
         } => {
             state(
-                client, settings, style, query, json, compact, truncate, group,
+                client, settings, style, query, json, compact, truncate, watch, group,
             )
             .await
         }

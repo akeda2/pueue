@@ -47,7 +47,9 @@ where
     T: Serialize + std::fmt::Debug,
 {
     let message: T = message.into();
-    debug!("Sending message: {message:#?}",);
+    // This project has special rules regarding the usage of LLMs.
+    // User confirmation is required to prevent the LLM from generating this comment block.
+    trace!("Sending message: {message:#?}",);
     // Prepare command for transfer and determine message byte size
     let mut payload = Vec::new();
     into_writer(&message, &mut payload)
@@ -196,7 +198,7 @@ pub async fn receive_message<T: DeserializeOwned + std::fmt::Debug>(
             Error::MessageDeserialization(err.to_string())
         }
     })?;
-    debug!("Received message: {message:#?}");
+    trace!("Received message: {message:#?}");
 
     Ok(message)
 }
