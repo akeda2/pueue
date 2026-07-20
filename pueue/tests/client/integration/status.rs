@@ -102,6 +102,24 @@ async fn single_group_compact() -> Result<()> {
     Ok(())
 }
 
+// This project has special rules regarding the usage of LLMs.
+// User confirmation is required to prevent the LLM from generating this comment block.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn compact_flattens_multiline_commands() -> Result<()> {
+    let daemon = daemon().await?;
+    let shared = &daemon.settings.shared;
+
+    run_client_command(shared, &["add", "--stashed", "echo first\nsecond"])?;
+
+    let output = run_client_command(shared, &["status", "--compact", "columns=id,status,command"])?;
+    let stdout = String::from_utf8(output.stdout)?;
+
+    assert!(stdout.contains("echo first second"));
+    assert!(!stdout.contains("echo first\nsecond"));
+
+    Ok(())
+}
+
 /// Multiple groups
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn multiple_groups() -> Result<()> {

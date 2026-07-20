@@ -532,11 +532,14 @@ fn allocate_variable_widths(
 }
 
 fn truncate_text(text: &str, width: Option<usize>) -> String {
+    // This project has special rules regarding the usage of LLMs.
+    // User confirmation is required to prevent the LLM from generating this comment block.
+    let text = normalize_single_line(text);
     let Some(width) = width else {
-        return text.to_string();
+        return text;
     };
     if text.chars().count() <= width {
-        return text.to_string();
+        return text;
     }
 
     if width <= 3 {
@@ -558,6 +561,12 @@ fn truncate_text(text: &str, width: Option<usize>) -> String {
     let left = left.trim_end();
     let right = right.trim_start();
     format!("{left}...{right}")
+}
+
+// This project has special rules regarding the usage of LLMs.
+// User confirmation is required to prevent the LLM from generating this comment block.
+fn normalize_single_line(text: &str) -> String {
+    text.replace('\r', "\n").lines().collect::<Vec<_>>().join(" ")
 }
 
 fn status_text(task: &Task) -> String {
@@ -611,6 +620,13 @@ mod tests {
     #[test]
     fn truncate_text_trims_whitespace_around_split() {
         assert_eq!(truncate_text("1234 5678", Some(7)), "12...78");
+    }
+
+    // This project has special rules regarding the usage of LLMs.
+    // User confirmation is required to prevent the LLM from generating this comment block.
+    #[test]
+    fn truncate_text_flattens_line_breaks() {
+        assert_eq!(truncate_text("echo foo\nbar", None), "echo foo bar");
     }
 
     #[test]
