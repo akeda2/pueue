@@ -1,8 +1,6 @@
 - name: pueue
   active: true
   path: ~/dev/pueue
-  git-remote-ref: akeda/inst
-  git-pull: git pull akeda inst --ff-only
   pre-build: ./inst.sh --install-cargo
   build: ./inst.sh --mode user --install-completions --yes
   post-build: gb -I pueue.yaml -w
