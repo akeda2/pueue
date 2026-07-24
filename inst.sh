@@ -9,6 +9,8 @@ ASSUME_YES=0
 INSTALL_COMPLETIONS="ask"
 SETUP_SERVICE="ask"
 ENABLE_LINGER="ask"
+INSTALL_GFFF_CONFIG="ask"
+FORCE_GFFF_CONFIG=0
 
 cont() {
 	local prompt="${1:-Continue?} (y/n): "
@@ -32,6 +34,9 @@ Options:
   --no-completions        Skip completion installation
   --setup-service         Install + enable user systemd service
   --no-service            Skip service setup
+  --install-gfff-config   Copy pueue.yaml to ~/.config/gfff if directory exists
+  --no-gfff-config        Skip gfff-buildbot config installation
+  --force-gfff-config     Overwrite existing ~/.config/gfff/pueue.yaml
   --enable-linger         Enable systemd linger for current user
   --no-linger             Skip linger setup
   --yes, -y               Non-interactive mode
@@ -64,6 +69,18 @@ while (($#)); do
 			;;
 		--no-service)
 			SETUP_SERVICE="no"
+			shift
+			;;
+		--install-gfff-config)
+			INSTALL_GFFF_CONFIG="yes"
+			shift
+			;;
+		--no-gfff-config)
+			INSTALL_GFFF_CONFIG="no"
+			shift
+			;;
+		--force-gfff-config)
+			FORCE_GFFF_CONFIG=1
 			shift
 			;;
 		--enable-linger)
@@ -242,6 +259,39 @@ if [[ "$ENABLE_LINGER" == "yes" ]]; then
 	fi
 fi
 
+if [[ "$INSTALL_GFFF_CONFIG" == "ask" ]]; then
+	if [[ "$MODE" == "user" ]]; then
+		INSTALL_GFFF_CONFIG="yes"
+	elif [[ $ASSUME_YES -eq 1 ]]; then
+		INSTALL_GFFF_CONFIG="no"
+	elif cont "Install gfff-buildbot config to ~/.config/gfff if present?"; then
+		INSTALL_GFFF_CONFIG="yes"
+	else
+		INSTALL_GFFF_CONFIG="no"
+	fi
+fi
+
+GFFF_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/gfff"
+GFFF_TARGET="$GFFF_DIR/pueue.yaml"
+
+if [[ "$INSTALL_GFFF_CONFIG" == "yes" ]]; then
+	if [[ -d "$GFFF_DIR" ]]; then
+		if [[ -e "$GFFF_TARGET" ]]; then
+			if [[ $FORCE_GFFF_CONFIG -eq 1 ]]; then
+				install -m 644 "$ROOT_DIR/pueue.yaml" "$GFFF_TARGET"
+				echo "Overwrote gfff-buildbot config at $GFFF_TARGET"
+			else
+				echo "Skipping gfff-buildbot config install: $GFFF_TARGET already exists"
+			fi
+		else
+			install -m 644 "$ROOT_DIR/pueue.yaml" "$GFFF_TARGET"
+			echo "Installed gfff-buildbot config to $GFFF_TARGET"
+		fi
+	else
+		echo "Skipping gfff-buildbot config install: $GFFF_DIR not found"
+	fi
+fi
+
 echo
 echo "Install summary"
 echo "  Mode:               $MODE"
@@ -249,5 +299,7 @@ echo "  Binaries:           $BIN_DIR"
 echo "  Completions:        $INSTALL_COMPLETIONS ($COMPLETION_DIR)"
 echo "  User service setup: $SETUP_SERVICE ($UNIT_TARGET)"
 echo "  Linger:             $ENABLE_LINGER"
+echo "  gfff config:        $INSTALL_GFFF_CONFIG ($GFFF_TARGET)"
+echo "  gfff force:         $FORCE_GFFF_CONFIG"
 echo
 echo "If $BIN_DIR is not in your PATH, add it and restart your shell."

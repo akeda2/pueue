@@ -134,7 +134,17 @@ Examples:
 
 # Skip service setup (only install binaries + completions)
 ./inst.sh --mode user --no-service --yes
+
+# Also copy pueue.yaml into ~/.config/gfff when that directory exists
+./inst.sh --mode user --install-gfff-config --yes
+
+# Overwrite existing ~/.config/gfff/pueue.yaml intentionally
+./inst.sh --mode user --install-gfff-config --force-gfff-config --yes
 ```
+
+In `--mode user`, gfff-buildbot config installation is enabled by default. It only runs if
+`~/.config/gfff` exists and won't overwrite an existing `~/.config/gfff/pueue.yaml`.
+Use `--force-gfff-config` to overwrite that file.
 
 Show all options:
 
