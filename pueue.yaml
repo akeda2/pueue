@@ -5,3 +5,9 @@
   build: ./inst.sh --mode user --install-completions --yes
   post-build: gb -I pueue.yaml -w
   interval: 3600
+- name: pueue-restart
+  active: true
+  path: ~/dev/pueue
+  test: systemctl --user restart pueued.service
+  at: 04:00
+  
