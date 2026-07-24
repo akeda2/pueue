@@ -12,7 +12,7 @@ use tokio::time::sleep;
 
 use crate::{
     client::{
-        commands::{get_state, get_task},
+        commands::{get_state, get_task, reconnect_client},
         display_helper::print_error,
         style::OutputStyle,
     },
@@ -102,7 +102,18 @@ pub async fn local_follow(
         None => {
             // The user didn't provide a task id.
             // Check whether we can find a single running task to follow.
-            let state = get_state(client).await?;
+            let state = loop {
+                match get_state(client).await {
+                    Ok(state) => break state,
+                    Err(_) => {
+                        eprintln!("Connection to daemon lost. Waiting for daemon restart...");
+                        if reconnect_client(client, &settings).await.is_err() {
+                            sleep(Duration::from_secs(1)).await;
+                        }
+                        continue;
+                    }
+                }
+            };
             let running_ids: Vec<_> = state
                 .tasks
                 .iter()
@@ -149,10 +160,31 @@ pub async fn follow_local_task_logs(
     let pueue_directory = &settings.shared.pueue_directory();
     // It might be that the task is not yet running.
     // Ensure that it exists and is started.
+    let mut waiting_for_reconnect = false;
     loop {
-        let Some(task) = get_task(client, task_id).await? else {
-            eprintln!("Pueue: The task to be followed doesn't exist.");
-            std::process::exit(1);
+        let task = match get_task(client, task_id).await {
+            Ok(Some(task)) => {
+                if waiting_for_reconnect {
+                    eprintln!("Reconnected to daemon. Resuming follow output.");
+                    waiting_for_reconnect = false;
+                }
+                task
+            }
+            Ok(None) => {
+                eprintln!("Pueue: The task to be followed doesn't exist.");
+                std::process::exit(1);
+            }
+            Err(_) => {
+                if !waiting_for_reconnect {
+                    eprintln!("Connection to daemon lost. Waiting for daemon restart...");
+                    waiting_for_reconnect = true;
+                }
+
+                if reconnect_client(client, &settings).await.is_err() {
+                    sleep(Duration::from_secs(1)).await;
+                }
+                continue;
+            }
         };
         // Task started up, we can start to follow.
         if task.is_running() || task.is_done() {
@@ -215,9 +247,29 @@ pub async fn follow_local_task_logs(
         //
         // In case either is not, exit.
         if (last_check % task_check_interval) == 0 {
-            let Some(task) = get_task(client, task_id).await? else {
-                eprintln!("Pueue: The followed task has been removed.");
-                std::process::exit(1);
+            let task = match get_task(client, task_id).await {
+                Ok(Some(task)) => {
+                    if waiting_for_reconnect {
+                        eprintln!("Reconnected to daemon. Resuming follow output.");
+                        waiting_for_reconnect = false;
+                    }
+                    task
+                }
+                Ok(None) => {
+                    eprintln!("Pueue: The followed task has been removed.");
+                    std::process::exit(1);
+                }
+                Err(_) => {
+                    if !waiting_for_reconnect {
+                        eprintln!("Connection to daemon lost. Waiting for daemon restart...");
+                        waiting_for_reconnect = true;
+                    }
+
+                    if reconnect_client(client, &settings).await.is_err() {
+                        sleep(Duration::from_secs(1)).await;
+                    }
+                    continue;
+                }
             };
             // Task exited by itself. We can stop following.
             if !task.is_running() {

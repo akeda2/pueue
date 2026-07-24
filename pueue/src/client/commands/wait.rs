@@ -8,13 +8,14 @@ use crossterm::style::{Attribute, Color};
 use pueue_lib::{
     Client,
     message::TaskSelection,
+    settings::Settings,
     state::State,
     task::{Task, TaskResult, TaskStatus},
 };
 use strum::{Display, EnumString};
 use tokio::time::sleep;
 
-use super::selection_from_params;
+use super::{reconnect_client, selection_from_params};
 use crate::{
     client::{commands::get_state, style::OutputStyle},
     internal_prelude::*,
@@ -45,6 +46,7 @@ pub enum WaitTargetStatus {
 /// Pass `quiet == true` to suppress any logging.
 pub async fn wait(
     client: &mut Client,
+    settings: Settings,
     style: &OutputStyle,
     task_ids: Vec<usize>,
     group: Option<String>,
@@ -60,11 +62,31 @@ pub async fn wait(
     let mut watched_tasks: HashMap<usize, TaskStatus> = HashMap::new();
     // Since tasks can be removed by users, we have to track tasks that actually finished.
     let mut finished_tasks: HashSet<usize> = HashSet::new();
+    let mut waiting_for_reconnect = false;
 
     // Wait for either a provided target status or the default (`Done`).
     let target_status = target_status.clone().unwrap_or_default();
     loop {
-        let state = get_state(client).await?;
+        let state = match get_state(client).await {
+            Ok(state) => {
+                if waiting_for_reconnect {
+                    eprintln!("Reconnected to daemon. Resuming wait output.");
+                    waiting_for_reconnect = false;
+                }
+                state
+            }
+            Err(_) => {
+                if !waiting_for_reconnect {
+                    eprintln!("Connection to daemon lost. Waiting for daemon restart...");
+                    waiting_for_reconnect = true;
+                }
+
+                if reconnect_client(client, &settings).await.is_err() {
+                    sleep(Duration::from_secs(1)).await;
+                }
+                continue;
+            }
+        };
         let tasks = get_tasks(&state, &selection);
 
         if tasks.is_empty() {

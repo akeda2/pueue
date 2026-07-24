@@ -10,6 +10,8 @@ use std::io::{Write, stdin, stdout};
 use pueue_lib::{
     Client, Settings,
     message::{Request, Response, TaskSelection},
+    network::socket::ConnectionSettings,
+    secret::read_shared_secret,
     state::{PUEUE_DEFAULT_GROUP, State},
     task::Task,
 };
@@ -125,6 +127,16 @@ pub async fn get_task(client: &mut Client, task_id: usize) -> Result<Option<Task
     };
 
     Ok(state.tasks.get(&task_id).cloned())
+}
+
+/// Recreate the daemon connection and replace the existing client.
+pub async fn reconnect_client(client: &mut Client, settings: &Settings) -> Result<()> {
+    let connection_settings = ConnectionSettings::try_from(settings.shared.clone())?;
+    let secret = read_shared_secret(&settings.shared.shared_secret_path())?;
+    let new_client = Client::new(connection_settings, &secret, false).await?;
+    *client = new_client;
+
+    Ok(())
 }
 
 /// Most returned messages can be handled in a generic fashion.
@@ -299,7 +311,7 @@ pub async fn handle_command(
             all,
             quiet,
             status,
-        } => wait(client, style, task_ids, group, all, quiet, status).await,
+        } => wait(client, settings, style, task_ids, group, all, quiet, status).await,
         _ => bail!("unhandled WIP"),
     }
 }
