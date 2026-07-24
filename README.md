@@ -116,6 +116,32 @@ cargo build --release --locked --path ./pueue
 
 The final binaries will be located in `target/release/{pueue,pueued}`.
 
+#### Install Script (user/system mode)
+
+The repository contains `inst.sh`, which can build and install Pueue in two scopes:
+
+- `--mode user` (default): installs binaries and completions into user-owned paths and sets up a user systemd unit without requiring `sudo`.
+- `--mode system`: installs into system paths (default prefix: `/usr/local`) and may require `sudo`.
+
+Examples:
+
+```bash
+# Non-interactive user-scoped install
+./inst.sh --mode user --yes
+
+# Non-interactive system install with explicit prefix
+./inst.sh --mode system --prefix /usr/local --yes
+
+# Skip service setup (only install binaries + completions)
+./inst.sh --mode user --no-service --yes
+```
+
+Show all options:
+
+```bash
+./inst.sh --help
+```
+
 ## How to Use it
 
 Check the wiki to [get started](https://github.com/Nukesor/pueue/wiki/Get-started) :).
