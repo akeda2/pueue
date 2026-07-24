@@ -6,3 +6,4 @@
   pre-build: ./inst.sh --install-cargo
   build: ./inst.sh --mode user --install-completions --enable-linger --yes
   post-build: gb -I pueue.yaml -w
+  interval: 3600
