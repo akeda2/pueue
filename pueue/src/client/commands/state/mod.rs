@@ -1,12 +1,19 @@
 use std::collections::BTreeMap;
+use std::{
+    io::{self, Write},
+    time::Duration,
+};
 
 use chrono::{DateTime, Local, LocalResult};
 use pueue_lib::{
     Client,
+    network::socket::ConnectionSettings,
+    secret::read_shared_secret,
     settings::Settings,
     state::{PUEUE_DEFAULT_GROUP, State},
     task::Task,
 };
+use tokio::time::sleep;
 
 use crate::{
     client::{commands::get_state, display_helper::get_group_headline, style::OutputStyle},
@@ -26,12 +33,76 @@ pub async fn state(
     style: &OutputStyle,
     query: Vec<String>,
     json: bool,
+    compact: bool,
+    truncate: bool,
+    watch: Option<u64>,
     group: Option<String>,
 ) -> Result<()> {
+    if let Some(seconds) = watch {
+        let mut waiting_for_reconnect = false;
+
+        loop {
+            if waiting_for_reconnect {
+                let connection_settings = ConnectionSettings::try_from(settings.shared.clone())?;
+                let secret = read_shared_secret(&settings.shared.shared_secret_path())?;
+
+                match Client::new(connection_settings, &secret, false).await {
+                    Ok(new_client) => {
+                        *client = new_client;
+                        waiting_for_reconnect = false;
+                        eprintln!("Reconnected to daemon. Resuming watch output.");
+                    }
+                    Err(_) => {
+                        sleep(Duration::from_secs(1)).await;
+                        continue;
+                    }
+                }
+            }
+
+            let state = match get_state(client).await {
+                Ok(state) => state,
+                Err(_) => {
+                    waiting_for_reconnect = true;
+                    eprintln!("Connection to daemon lost. Waiting for daemon restart...");
+                    sleep(Duration::from_secs(1)).await;
+                    continue;
+                }
+            };
+            let tasks = state.tasks.values().cloned().collect();
+            let output = print_state(
+                state,
+                tasks,
+                style,
+                &settings,
+                json,
+                compact,
+                truncate,
+                group.clone(),
+                Some(query.clone()),
+            )?;
+
+            // Clear screen and move cursor to top-left before printing the next snapshot.
+            print!("\x1b[2J\x1b[H{output}\n");
+            io::stdout().flush()?;
+
+            sleep(Duration::from_secs(seconds)).await;
+        }
+    }
+
     let state = get_state(client).await?;
     let tasks = state.tasks.values().cloned().collect();
 
-    let output = print_state(state, tasks, style, &settings, json, group, Some(query))?;
+    let output = print_state(
+        state,
+        tasks,
+        style,
+        &settings,
+        json,
+        compact,
+        truncate,
+        group,
+        Some(query),
+    )?;
     println!("{output}");
 
     Ok(())
@@ -48,12 +119,14 @@ fn print_state(
     style: &OutputStyle,
     settings: &Settings,
     json: bool,
+    compact: bool,
+    truncate: bool,
     group: Option<String>,
     query: Option<Vec<String>>,
 ) -> Result<String> {
     let mut output = String::new();
 
-    let mut table_builder = TableBuilder::new(settings, style);
+    let mut table_builder = TableBuilder::new(settings, style, !compact, truncate);
 
     if let Some(query) = &query {
         let query_result = apply_query(&query.join(" "), &group)?;

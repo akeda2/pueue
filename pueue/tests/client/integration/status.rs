@@ -76,6 +76,50 @@ async fn single_group() -> Result<()> {
     Ok(())
 }
 
+/// Test status for single group in compact mode.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn single_group_compact() -> Result<()> {
+    let daemon = daemon().await?;
+    let shared = &daemon.settings.shared;
+
+    // Add a new group
+    add_group_with_slots(shared, "testgroup", 1).await?;
+
+    // Add a task to the new testgroup.
+    run_client_command(shared, &["add", "--group", "testgroup", "ls"])?;
+    // Add another task to the default group.
+    run_client_command(shared, &["add", "--stashed", "ls"])?;
+
+    // Make sure the first task finished.
+    wait_for_task_condition(shared, 0, Task::is_done).await?;
+
+    let output = run_status_without_path(shared, &["--compact", "--group", "testgroup"]).await?;
+
+    // The output should only show the first task and should not include separator lines.
+    let context = get_task_context(&daemon.settings).await?;
+    assert_template_matches("status__single_group_compact", output, context)?;
+
+    Ok(())
+}
+
+// This project has special rules regarding the usage of LLMs.
+// User confirmation is required to prevent the LLM from generating this comment block.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn compact_flattens_multiline_commands() -> Result<()> {
+    let daemon = daemon().await?;
+    let shared = &daemon.settings.shared;
+
+    run_client_command(shared, &["add", "--stashed", "echo first\nsecond"])?;
+
+    let output = run_client_command(shared, &["status", "--compact", "columns=id,status,command"])?;
+    let stdout = String::from_utf8(output.stdout)?;
+
+    assert!(stdout.contains("echo first second"));
+    assert!(!stdout.contains("echo first\nsecond"));
+
+    Ok(())
+}
+
 /// Multiple groups
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn multiple_groups() -> Result<()> {

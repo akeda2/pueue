@@ -365,6 +365,20 @@ impl Shared {
 }
 
 impl Settings {
+    fn migrate_legacy_status_datetime_format(&mut self) {
+        const LEGACY_STATUS_DATETIME_FORMAT: &str = "%Y-%m-%d\n%H:%M:%S";
+
+        if self.client.status_datetime_format == LEGACY_STATUS_DATETIME_FORMAT {
+            self.client.status_datetime_format = default_status_datetime_format();
+        }
+
+        for profile in self.profiles.values_mut() {
+            if profile.client.status_datetime_format == LEGACY_STATUS_DATETIME_FORMAT {
+                profile.client.status_datetime_format = default_status_datetime_format();
+            }
+        }
+    }
+
     /// Try to read existing config files, while using default values for non-existing fields.
     /// If successful, this will return a full config as well as a boolean on whether we found an
     /// existing configuration file or not.
@@ -383,8 +397,9 @@ impl Settings {
                 .map_err(|err| Error::IoPathError(path.clone(), "opening config file", err))?;
             let reader = BufReader::new(file);
 
-            let settings = serde_yaml::from_reader(reader)
+            let mut settings: Settings = serde_yaml::from_reader(reader)
                 .map_err(|err| Error::ConfigDeserialization(err.to_string()))?;
+            settings.migrate_legacy_status_datetime_format();
             return Ok((settings, true));
         };
 
@@ -404,8 +419,9 @@ impl Settings {
                     .map_err(|err| Error::IoPathError(path, "opening config file.", err))?;
                 let reader = BufReader::new(file);
 
-                let settings = serde_yaml::from_reader(reader)
+                let mut settings: Settings = serde_yaml::from_reader(reader)
                     .map_err(|err| Error::ConfigDeserialization(err.to_string()))?;
+                settings.migrate_legacy_status_datetime_format();
                 return Ok((settings, true));
             }
         }
@@ -530,5 +546,35 @@ mod test {
         }
 
         panic!("Got unexpected result when expecting missing profile error: {result:?}");
+    }
+
+    #[test]
+    fn test_migrate_legacy_status_datetime_format() {
+        let mut settings = Settings::default();
+        settings.client.status_datetime_format = "%Y-%m-%d\n%H:%M:%S".to_string();
+
+        let mut profile = NestedSettings {
+            client: Client::default(),
+            daemon: Daemon::default(),
+            shared: Shared::default(),
+        };
+        profile.client.status_datetime_format = "%Y-%m-%d\n%H:%M:%S".to_string();
+        settings.profiles.insert("legacy".to_string(), profile);
+
+        settings.migrate_legacy_status_datetime_format();
+
+        assert_eq!(
+            settings.client.status_datetime_format,
+            default_status_datetime_format()
+        );
+        assert_eq!(
+            settings
+                .profiles
+                .get("legacy")
+                .unwrap()
+                .client
+                .status_datetime_format,
+            default_status_datetime_format()
+        );
     }
 }

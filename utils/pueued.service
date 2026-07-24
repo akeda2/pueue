@@ -1,5 +1,6 @@
-# This is the service file for the pueue daemon
-# To enable the daemon type `systemctl --user enable pueued.service`
+# This is the service file for the pueue daemon.
+# The installer rewrites ExecStart to the selected install location.
+# To enable the daemon type `systemctl --user enable --now pueued.service`
 # To start the daemon type `systemctl --user start pueued.service`
 
 [Unit]

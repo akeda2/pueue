@@ -1,0 +1,8 @@
+- name: pueue
+  active: true
+  git-remote-ref: inst
+  path: ~/dev/pueue
+  pre-build: ./inst.sh --install-cargo
+  build: ./inst.sh --mode user --install-completions --yes
+  post-build: gb -I pueue.yaml -w
+  interval: 3700
