@@ -61,11 +61,9 @@ pub async fn state(
 
             let state = match get_state(client).await {
                 Ok(state) => state,
-                Err(error) => {
+                Err(_) => {
                     waiting_for_reconnect = true;
-                    eprintln!(
-                        "Connection to daemon lost ({error}). Waiting for daemon restart..."
-                    );
+                    eprintln!("Connection to daemon lost. Waiting for daemon restart...");
                     sleep(Duration::from_secs(1)).await;
                     continue;
                 }
