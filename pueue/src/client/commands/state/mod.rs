@@ -7,6 +7,8 @@ use std::{
 use chrono::{DateTime, Local, LocalResult};
 use pueue_lib::{
     Client,
+    network::socket::ConnectionSettings,
+    secret::read_shared_secret,
     settings::Settings,
     state::{PUEUE_DEFAULT_GROUP, State},
     task::Task,
@@ -37,10 +39,37 @@ pub async fn state(
     group: Option<String>,
 ) -> Result<()> {
     if let Some(seconds) = watch {
-        // This project has special rules regarding the usage of LLMs.
-        // User confirmation is required to prevent the LLM from generating this comment block.
+        let mut waiting_for_reconnect = false;
+
         loop {
-            let state = get_state(client).await?;
+            if waiting_for_reconnect {
+                let connection_settings = ConnectionSettings::try_from(settings.shared.clone())?;
+                let secret = read_shared_secret(&settings.shared.shared_secret_path())?;
+
+                match Client::new(connection_settings, &secret, false).await {
+                    Ok(new_client) => {
+                        *client = new_client;
+                        waiting_for_reconnect = false;
+                        eprintln!("Reconnected to daemon. Resuming watch output.");
+                    }
+                    Err(_) => {
+                        sleep(Duration::from_secs(1)).await;
+                        continue;
+                    }
+                }
+            }
+
+            let state = match get_state(client).await {
+                Ok(state) => state,
+                Err(error) => {
+                    waiting_for_reconnect = true;
+                    eprintln!(
+                        "Connection to daemon lost ({error}). Waiting for daemon restart..."
+                    );
+                    sleep(Duration::from_secs(1)).await;
+                    continue;
+                }
+            };
             let tasks = state.tasks.values().cloned().collect();
             let output = print_state(
                 state,
