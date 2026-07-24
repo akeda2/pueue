@@ -6,7 +6,7 @@
   post-build: gb -I pueue.yaml -w
   interval: 3600
 - name: pueue-restart
-  active: true
+  active: false
   path: ~/dev/pueue
   test: systemctl --user restart pueued.service
   at: 04:00
