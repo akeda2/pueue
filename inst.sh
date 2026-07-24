@@ -20,7 +20,11 @@ cont() {
 }
 
 install_cargo() {
-	curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+	if [[ $ASSUME_YES -eq 1 || ! -t 0 ]]; then
+		curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+	else
+		curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+	fi
 }
 
 print_usage() {
