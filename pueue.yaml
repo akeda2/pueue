@@ -9,6 +9,7 @@
   active: true
   run-mode: scheduled
   path: ~/dev/pueue
+  pre-build: "sed -i '/^- name: pueue-restart$/,/^- name: / s/^\\([[:space:]]*active:[[:space:]]*\\)true$/\\1false/' ~/.config/gfff/pueue.yaml"
   test: systemctl --user restart pueued.service
-  at: 04:00
+  at: "04:00"
   
