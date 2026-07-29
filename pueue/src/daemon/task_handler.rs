@@ -19,13 +19,25 @@ use crate::{
 fn current_cpu_time_ms(pid: u32) -> Option<u64> {
     let pid = i32::try_from(pid).ok()?;
     let process = procfs::process::Process::new(pid).ok()?;
-    let stat = process.stat().ok()?;
+    let process_group_id = process.stat().ok()?.pgrp;
     let ticks_per_second = u64::try_from(procfs::ticks_per_second()).ok()?;
     if ticks_per_second == 0 {
         return None;
     }
 
-    let ticks = stat.utime.saturating_add(stat.stime);
+    let mut ticks: u64 = 0;
+    for process in procfs::process::all_processes().ok()? {
+        let Ok(process) = process else {
+            continue;
+        };
+        let Ok(stat) = process.stat() else {
+            continue;
+        };
+        if stat.pgrp == process_group_id {
+            ticks = ticks.saturating_add(stat.utime.saturating_add(stat.stime));
+        }
+    }
+
     Some(ticks.saturating_mul(1000) / ticks_per_second)
 }
 
