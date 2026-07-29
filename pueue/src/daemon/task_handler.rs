@@ -46,6 +46,10 @@ fn current_cpu_time_ms(_pid: u32) -> Option<u64> {
     None
 }
 
+fn merge_cpu_time_ms(existing: Option<u64>, sampled: u64) -> u64 {
+    existing.map_or(sampled, |existing| existing.max(sampled))
+}
+
 fn refresh_task_cpu_times(state: &mut LockedState) {
     let mut updates = Vec::new();
 
@@ -60,7 +64,7 @@ fn refresh_task_cpu_times(state: &mut LockedState) {
 
     for (task_id, cpu_time_ms) in updates {
         if let Some(task) = state.tasks_mut().get_mut(&task_id) {
-            task.cpu_time_ms = Some(cpu_time_ms);
+            task.cpu_time_ms = Some(merge_cpu_time_ms(task.cpu_time_ms, cpu_time_ms));
         }
     }
 }
@@ -260,5 +264,25 @@ fn check_failed_dependencies(settings: &Settings, state: &mut LockedState) {
         };
 
         spawn_callback(settings, state, &task);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::merge_cpu_time_ms;
+
+    #[test]
+    fn merge_cpu_time_keeps_existing_when_sampled_is_lower() {
+        assert_eq!(merge_cpu_time_ms(Some(1200), 200), 1200);
+    }
+
+    #[test]
+    fn merge_cpu_time_uses_sampled_when_higher() {
+        assert_eq!(merge_cpu_time_ms(Some(1200), 1500), 1500);
+    }
+
+    #[test]
+    fn merge_cpu_time_initializes_when_missing() {
+        assert_eq!(merge_cpu_time_ms(None, 300), 300);
     }
 }
