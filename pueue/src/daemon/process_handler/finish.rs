@@ -38,6 +38,15 @@ fn current_cpu_time_ms(_pid: u32) -> Option<u64> {
     None
 }
 
+fn merge_cpu_time_ms(existing: Option<u64>, sampled: Option<u64>) -> Option<u64> {
+    match (existing, sampled) {
+        (Some(existing), Some(sampled)) => Some(existing.max(sampled)),
+        (Some(existing), None) => Some(existing),
+        (None, Some(sampled)) => Some(sampled),
+        (None, None) => None,
+    }
+}
+
 /// Check whether there are any finished processes
 /// In case there are, handle them and update the shared state
 pub fn handle_finished_tasks(settings: &Settings, state: &mut LockedState) {
@@ -141,9 +150,7 @@ pub fn handle_finished_tasks(settings: &Settings, state: &mut LockedState) {
                 end: Local::now(),
                 result: result.clone(),
             };
-            if let Some(cpu_time_ms) = cpu_time_ms {
-                task.cpu_time_ms = Some(cpu_time_ms);
-            }
+            task.cpu_time_ms = merge_cpu_time_ms(task.cpu_time_ms, cpu_time_ms);
 
             task.clone()
         };
@@ -165,6 +172,31 @@ pub fn handle_finished_tasks(settings: &Settings, state: &mut LockedState) {
     }
 
     ok_or_shutdown!(settings, state, state.save(settings));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::merge_cpu_time_ms;
+
+    #[test]
+    fn keeps_existing_when_sampled_is_missing() {
+        assert_eq!(merge_cpu_time_ms(Some(1200), None), Some(1200));
+    }
+
+    #[test]
+    fn keeps_existing_when_sampled_is_lower() {
+        assert_eq!(merge_cpu_time_ms(Some(1200), Some(1000)), Some(1200));
+    }
+
+    #[test]
+    fn updates_when_sampled_is_higher() {
+        assert_eq!(merge_cpu_time_ms(Some(1000), Some(1200)), Some(1200));
+    }
+
+    #[test]
+    fn initializes_from_sampled() {
+        assert_eq!(merge_cpu_time_ms(None, Some(1200)), Some(1200));
+    }
 }
 
 /// Gather all finished tasks and sort them by finished and errored.
