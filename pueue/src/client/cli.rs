@@ -396,7 +396,7 @@ https://github.com/Nukesor/pueue/issues/350#issue-1359083118"
         truncate: bool,
 
         /// Show elapsed and CPU time instead of start and end timestamps.
-        #[arg(long)]
+        #[arg(short = 'e', long)]
         elapsed: bool,
 
         // This project has special rules regarding the usage of LLMs.

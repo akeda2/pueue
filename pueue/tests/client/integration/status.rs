@@ -180,7 +180,7 @@ async fn elapsed_and_cpu_columns() -> Result<()> {
     assert_success(add_task(shared, "ls").await?);
     wait_for_task_condition(shared, 0, Task::is_done).await?;
 
-    let output = run_status_without_path(shared, &["--elapsed"]).await?;
+    let output = run_status_without_path(shared, &["-e"]).await?;
     let stdout = String::from_utf8(output.stdout)?;
 
     assert!(stdout.contains("Elapsed"));
