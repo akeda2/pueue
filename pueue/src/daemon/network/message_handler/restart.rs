@@ -68,6 +68,7 @@ fn restart(state: &mut LockedState, to_restart: TaskToRestart, stashed: bool, se
             enqueued_at: Local::now(),
         };
     };
+    task.cpu_time_ms = None;
 
     // Update task properties in case they've been edited.
     task.original_command = to_restart.original_command.clone();

@@ -15,6 +15,44 @@ use crate::{
     ok_or_shutdown,
 };
 
+#[cfg(target_os = "linux")]
+fn current_cpu_time_ms(pid: u32) -> Option<u64> {
+    let pid = i32::try_from(pid).ok()?;
+    let process = procfs::process::Process::new(pid).ok()?;
+    let stat = process.stat().ok()?;
+    let ticks_per_second = u64::try_from(procfs::ticks_per_second()).ok()?;
+    if ticks_per_second == 0 {
+        return None;
+    }
+
+    let ticks = stat.utime.saturating_add(stat.stime);
+    Some(ticks.saturating_mul(1000) / ticks_per_second)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn current_cpu_time_ms(_pid: u32) -> Option<u64> {
+    None
+}
+
+fn refresh_task_cpu_times(state: &mut LockedState) {
+    let mut updates = Vec::new();
+
+    for children in state.children.0.values() {
+        for (task_id, child) in children.values() {
+            let Some(cpu_time_ms) = current_cpu_time_ms(child.id()) else {
+                continue;
+            };
+            updates.push((*task_id, cpu_time_ms));
+        }
+    }
+
+    for (task_id, cpu_time_ms) in updates {
+        if let Some(task) = state.tasks_mut().get_mut(&task_id) {
+            task.cpu_time_ms = Some(cpu_time_ms);
+        }
+    }
+}
+
 /// Main task handling loop.
 /// In here a few things happen:
 ///
@@ -44,6 +82,7 @@ pub async fn run(state: SharedState, settings: Settings) -> Result<()> {
 
             check_callbacks(&mut state);
             handle_finished_tasks(&settings, &mut state);
+            refresh_task_cpu_times(&mut state);
 
             // Check if we're in shutdown.
             // If all tasks are killed, we do some cleanup and exit.
@@ -204,6 +243,7 @@ fn check_failed_dependencies(settings: &Settings, state: &mut LockedState) {
                 end: Local::now(),
                 result: TaskResult::DependencyFailed,
             };
+            task.cpu_time_ms = None;
             task.clone()
         };
 

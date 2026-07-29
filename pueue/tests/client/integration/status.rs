@@ -171,3 +171,22 @@ async fn json() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn elapsed_and_cpu_columns() -> Result<()> {
+    let daemon = daemon().await?;
+    let shared = &daemon.settings.shared;
+
+    assert_success(add_task(shared, "ls").await?);
+    wait_for_task_condition(shared, 0, Task::is_done).await?;
+
+    let output = run_status_without_path(shared, &["--elapsed"]).await?;
+    let stdout = String::from_utf8(output.stdout)?;
+
+    assert!(stdout.contains("Elapsed"));
+    assert!(stdout.contains("CPU"));
+    assert!(!stdout.contains(" Start "));
+    assert!(!stdout.contains(" End"));
+
+    Ok(())
+}

@@ -35,6 +35,7 @@ pub async fn state(
     json: bool,
     compact: bool,
     truncate: bool,
+    elapsed: bool,
     watch: Option<u64>,
     group: Option<String>,
 ) -> Result<()> {
@@ -77,6 +78,7 @@ pub async fn state(
                 json,
                 compact,
                 truncate,
+                elapsed,
                 group.clone(),
                 Some(query.clone()),
             )?;
@@ -100,6 +102,7 @@ pub async fn state(
         json,
         compact,
         truncate,
+        elapsed,
         group,
         Some(query),
     )?;
@@ -121,12 +124,13 @@ fn print_state(
     json: bool,
     compact: bool,
     truncate: bool,
+    elapsed: bool,
     group: Option<String>,
     query: Option<Vec<String>>,
 ) -> Result<String> {
     let mut output = String::new();
 
-    let mut table_builder = TableBuilder::new(settings, style, !compact, truncate);
+    let mut table_builder = TableBuilder::new(settings, style, !compact, truncate, elapsed);
 
     if let Some(query) = &query {
         let query_result = apply_query(&query.join(" "), &group)?;

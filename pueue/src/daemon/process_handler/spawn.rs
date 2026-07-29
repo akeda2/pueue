@@ -218,6 +218,7 @@ pub fn spawn_process(settings: &Settings, state: &mut LockedState, task_id: usiz
                     end: Local::now(),
                     result: TaskResult::FailedToSpawn(error_msg),
                 };
+                task.cpu_time_ms = None;
                 task.clone()
             };
 
@@ -238,6 +239,7 @@ pub fn spawn_process(settings: &Settings, state: &mut LockedState, task_id: usiz
         enqueued_at,
         start: Local::now(),
     };
+    task.cpu_time_ms = None;
     // Overwrite the task's environment variables with the new ones, containing the
     // PUEUE_WORKER_ID and PUEUE_GROUP variables.
     task.envs = envs;
