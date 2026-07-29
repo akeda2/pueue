@@ -129,7 +129,9 @@ pub fn handle_finished_tasks(settings: &Settings, state: &mut LockedState) {
                 end: Local::now(),
                 result: result.clone(),
             };
-            task.cpu_time_ms = cpu_time_ms;
+            if let Some(cpu_time_ms) = cpu_time_ms {
+                task.cpu_time_ms = Some(cpu_time_ms);
+            }
 
             task.clone()
         };
