@@ -20,6 +20,7 @@ pub struct TableBuilder<'a> {
     show_row_separators: bool,
     truncate_to_terminal_width: bool,
     show_elapsed_and_cpu: bool,
+    compact_old_timestamps: bool,
 
     /// Whether the columns to be displayed are explicitly selected by the user.
     /// If that's the case, we won't do any automated checks whether columns should be displayed or
@@ -47,6 +48,7 @@ impl<'a> TableBuilder<'a> {
         show_row_separators: bool,
         truncate_to_terminal_width: bool,
         show_elapsed_and_cpu: bool,
+        compact_old_timestamps: bool,
     ) -> Self {
         Self {
             settings,
@@ -54,6 +56,7 @@ impl<'a> TableBuilder<'a> {
             show_row_separators,
             truncate_to_terminal_width,
             show_elapsed_and_cpu,
+            compact_old_timestamps,
             selected_columns: false,
             id: true,
             status: true,
@@ -313,7 +316,7 @@ impl<'a> TableBuilder<'a> {
             let (start, end) = if self.show_elapsed_and_cpu {
                 (elapsed_text(task), cpu_text(task))
             } else {
-                formatted_start_end(task, self.settings)
+                formatted_start_end(task, self.settings, self.compact_old_timestamps)
             };
             if self.start {
                 row.add_cell(Cell::new(start));
@@ -430,7 +433,14 @@ impl<'a> TableBuilder<'a> {
                         if self.show_elapsed_and_cpu {
                             elapsed_text(task).chars().count()
                         } else {
-                            formatted_start_end(task, self.settings).0.chars().count()
+                            formatted_start_end(
+                                task,
+                                self.settings,
+                                self.compact_old_timestamps,
+                            )
+                            .0
+                            .chars()
+                            .count()
                         }
                     })
                     .max()
@@ -451,7 +461,14 @@ impl<'a> TableBuilder<'a> {
                         if self.show_elapsed_and_cpu {
                             cpu_text(task).chars().count()
                         } else {
-                            formatted_start_end(task, self.settings).1.chars().count()
+                            formatted_start_end(
+                                task,
+                                self.settings,
+                                self.compact_old_timestamps,
+                            )
+                            .1
+                            .chars()
+                            .count()
                         }
                     })
                     .max()
