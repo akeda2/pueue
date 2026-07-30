@@ -171,3 +171,49 @@ async fn json() -> Result<()> {
 
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn elapsed_and_cpu_columns() -> Result<()> {
+    let daemon = daemon().await?;
+    let shared = &daemon.settings.shared;
+
+    assert_success(add_task(shared, "ls").await?);
+    wait_for_task_condition(shared, 0, Task::is_done).await?;
+
+    let output = run_status_without_path(shared, &["-e"]).await?;
+    let stdout = String::from_utf8(output.stdout)?;
+
+    assert!(stdout.contains("Elapsed"));
+    assert!(stdout.contains("CPU"));
+    assert!(!stdout.contains(" Start "));
+    assert!(!stdout.contains(" End"));
+
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn cpu_time_is_recorded_for_process_group_workload() -> Result<()> {
+    let daemon = daemon().await?;
+    let shared = &daemon.settings.shared;
+
+    assert_success(add_task(
+        shared,
+        "yes > /dev/null & pid=$!; sleep 1; kill $pid; wait $pid || true",
+    )
+    .await?);
+    wait_for_task_condition(shared, 0, Task::is_done).await?;
+
+    let state = get_state(shared).await?;
+    let Some(task) = state.tasks.get(&0) else {
+        bail!("Failed to get task 0 from state");
+    };
+
+    assert!(
+        task.cpu_time_ms.unwrap_or_default() > 0,
+        "Expected cpu_time_ms to be set for a CPU-bound task, got {:?}",
+        task.cpu_time_ms
+    );
+
+    Ok(())
+}

@@ -67,6 +67,7 @@ async fn main() -> Result<()> {
         json: false,
         compact: false,
         truncate: false,
+        elapsed: false,
         watch: None,
         group: None,
         query: Vec::new(),

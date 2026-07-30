@@ -7,6 +7,46 @@ use crate::{
     ok_or_shutdown,
 };
 
+#[cfg(target_os = "linux")]
+fn current_cpu_time_ms(pid: u32) -> Option<u64> {
+    let pid = i32::try_from(pid).ok()?;
+    let process = procfs::process::Process::new(pid).ok()?;
+    let process_group_id = process.stat().ok()?.pgrp;
+    let ticks_per_second = u64::try_from(procfs::ticks_per_second()).ok()?;
+    if ticks_per_second == 0 {
+        return None;
+    }
+
+    let mut ticks: u64 = 0;
+    for process in procfs::process::all_processes().ok()? {
+        let Ok(process) = process else {
+            continue;
+        };
+        let Ok(stat) = process.stat() else {
+            continue;
+        };
+        if stat.pgrp == process_group_id {
+            ticks = ticks.saturating_add(stat.utime.saturating_add(stat.stime));
+        }
+    }
+
+    Some(ticks.saturating_mul(1000) / ticks_per_second)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn current_cpu_time_ms(_pid: u32) -> Option<u64> {
+    None
+}
+
+fn merge_cpu_time_ms(existing: Option<u64>, sampled: Option<u64>) -> Option<u64> {
+    match (existing, sampled) {
+        (Some(existing), Some(sampled)) => Some(existing.max(sampled)),
+        (Some(existing), None) => Some(existing),
+        (None, Some(sampled)) => Some(sampled),
+        (None, None) => None,
+    }
+}
+
 /// Check whether there are any finished processes
 /// In case there are, handle them and update the shared state
 pub fn handle_finished_tasks(settings: &Settings, state: &mut LockedState) {
@@ -74,6 +114,8 @@ pub fn handle_finished_tasks(settings: &Settings, state: &mut LockedState) {
             .remove(worker_id)
             .expect("Child of task {} went away while handling finished task.");
 
+        let cpu_time_ms = current_cpu_time_ms(child.id());
+
         // Get the exit code of the child.
         // Errors really shouldn't happen in here, since we already checked if it's finished
         // with try_wait() before.
@@ -108,6 +150,7 @@ pub fn handle_finished_tasks(settings: &Settings, state: &mut LockedState) {
                 end: Local::now(),
                 result: result.clone(),
             };
+            task.cpu_time_ms = merge_cpu_time_ms(task.cpu_time_ms, cpu_time_ms);
 
             task.clone()
         };
@@ -129,6 +172,31 @@ pub fn handle_finished_tasks(settings: &Settings, state: &mut LockedState) {
     }
 
     ok_or_shutdown!(settings, state, state.save(settings));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::merge_cpu_time_ms;
+
+    #[test]
+    fn keeps_existing_when_sampled_is_missing() {
+        assert_eq!(merge_cpu_time_ms(Some(1200), None), Some(1200));
+    }
+
+    #[test]
+    fn keeps_existing_when_sampled_is_lower() {
+        assert_eq!(merge_cpu_time_ms(Some(1200), Some(1000)), Some(1200));
+    }
+
+    #[test]
+    fn updates_when_sampled_is_higher() {
+        assert_eq!(merge_cpu_time_ms(Some(1000), Some(1200)), Some(1200));
+    }
+
+    #[test]
+    fn initializes_from_sampled() {
+        assert_eq!(merge_cpu_time_ms(None, Some(1200)), Some(1200));
+    }
 }
 
 /// Gather all finished tasks and sort them by finished and errored.

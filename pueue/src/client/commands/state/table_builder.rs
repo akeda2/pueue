@@ -1,4 +1,4 @@
-use chrono::TimeDelta;
+use chrono::{Local, TimeDelta};
 use comfy_table::{
     Cell, ContentArrangement, Row, Table, presets::NOTHING, presets::UTF8_HORIZONTAL_ONLY,
 };
@@ -19,6 +19,7 @@ pub struct TableBuilder<'a> {
     style: &'a OutputStyle,
     show_row_separators: bool,
     truncate_to_terminal_width: bool,
+    show_elapsed_and_cpu: bool,
 
     /// Whether the columns to be displayed are explicitly selected by the user.
     /// If that's the case, we won't do any automated checks whether columns should be displayed or
@@ -45,12 +46,14 @@ impl<'a> TableBuilder<'a> {
         style: &'a OutputStyle,
         show_row_separators: bool,
         truncate_to_terminal_width: bool,
+        show_elapsed_and_cpu: bool,
     ) -> Self {
         Self {
             settings,
             style,
             show_row_separators,
             truncate_to_terminal_width,
+            show_elapsed_and_cpu,
             selected_columns: false,
             id: true,
             status: true,
@@ -193,10 +196,20 @@ impl<'a> TableBuilder<'a> {
             header.push(Cell::new("Path"));
         }
         if self.start {
-            header.push(Cell::new("Start"));
+            let column_name = if self.show_elapsed_and_cpu {
+                "Elapsed"
+            } else {
+                "Start"
+            };
+            header.push(Cell::new(column_name));
         }
         if self.end {
-            header.push(Cell::new("End"));
+            let column_name = if self.show_elapsed_and_cpu {
+                "CPU"
+            } else {
+                "End"
+            };
+            header.push(Cell::new(column_name));
         }
 
         Row::from(header)
@@ -222,7 +235,7 @@ impl<'a> TableBuilder<'a> {
                 // Determine the human readable task status representation and the respective color.
                 let status_string = task.status.to_string();
                 let (status_text, color) = match &task.status {
-                    TaskStatus::Running { .. } => (status_string, Color::Green),
+                    TaskStatus::Running { .. } => (status_string, Color::Yellow),
                     TaskStatus::Paused { .. } | TaskStatus::Locked { .. } => {
                         (status_string, Color::White)
                     }
@@ -284,18 +297,24 @@ impl<'a> TableBuilder<'a> {
                 } else {
                     task.original_command.as_str()
                 };
-                let command = truncate_text(command, truncation.command);
+                let flatten_multiline = !self.show_row_separators || self.truncate_to_terminal_width;
+                let command = prepare_cell_text(command, truncation.command, flatten_multiline);
                 row.add_cell(Cell::new(command));
             }
 
             if self.path {
                 let path = task.path.to_string_lossy();
-                let path = truncate_text(&path, truncation.path);
+                let flatten_multiline = !self.show_row_separators || self.truncate_to_terminal_width;
+                let path = prepare_cell_text(&path, truncation.path, flatten_multiline);
                 row.add_cell(Cell::new(path));
             }
 
-            // Add start and end info
-            let (start, end) = formatted_start_end(task, self.settings);
+            // Add start/end or elapsed/CPU info.
+            let (start, end) = if self.show_elapsed_and_cpu {
+                (elapsed_text(task), cpu_text(task))
+            } else {
+                formatted_start_end(task, self.settings)
+            };
             if self.start {
                 row.add_cell(Cell::new(start));
             }
@@ -400,10 +419,20 @@ impl<'a> TableBuilder<'a> {
         if self.start {
             visible_columns += 1;
             fixed_content_width += std::cmp::max(
-                "Start".chars().count(),
+                if self.show_elapsed_and_cpu {
+                    "Elapsed".chars().count()
+                } else {
+                    "Start".chars().count()
+                },
                 tasks
                     .iter()
-                    .map(|task| formatted_start_end(task, self.settings).0.chars().count())
+                    .map(|task| {
+                        if self.show_elapsed_and_cpu {
+                            elapsed_text(task).chars().count()
+                        } else {
+                            formatted_start_end(task, self.settings).0.chars().count()
+                        }
+                    })
                     .max()
                     .unwrap_or(0),
             );
@@ -411,10 +440,20 @@ impl<'a> TableBuilder<'a> {
         if self.end {
             visible_columns += 1;
             fixed_content_width += std::cmp::max(
-                "End".chars().count(),
+                if self.show_elapsed_and_cpu {
+                    "CPU".chars().count()
+                } else {
+                    "End".chars().count()
+                },
                 tasks
                     .iter()
-                    .map(|task| formatted_start_end(task, self.settings).1.chars().count())
+                    .map(|task| {
+                        if self.show_elapsed_and_cpu {
+                            cpu_text(task).chars().count()
+                        } else {
+                            formatted_start_end(task, self.settings).1.chars().count()
+                        }
+                    })
                     .max()
                     .unwrap_or(0),
             );
@@ -457,9 +496,15 @@ impl<'a> TableBuilder<'a> {
             path = Some(VariableColumnWidths { min, desired });
         }
 
-        // Keep a conservative spacing overhead. Comfy-table applies additional cell paddings,
-        // which can otherwise cause wrapped words in heavily truncated command columns.
-        let spacing_overhead = visible_columns * 2 + 3;
+        // Keep a conservative spacing overhead. Comfy-table applies additional cell paddings and
+        // separators, which can otherwise cause wrapped words in heavily truncated command
+        // columns. With row separators enabled, each visible column effectively costs an
+        // additional separator character.
+        let spacing_overhead = if self.show_row_separators {
+            visible_columns * 3 + 3
+        } else {
+            visible_columns * 2 + 3
+        };
         let fixed_total = fixed_content_width + spacing_overhead;
         let available = terminal_width.saturating_sub(fixed_total);
 
@@ -532,14 +577,11 @@ fn allocate_variable_widths(
 }
 
 fn truncate_text(text: &str, width: Option<usize>) -> String {
-    // This project has special rules regarding the usage of LLMs.
-    // User confirmation is required to prevent the LLM from generating this comment block.
-    let text = normalize_single_line(text);
     let Some(width) = width else {
-        return text;
+        return text.to_string();
     };
     if text.chars().count() <= width {
-        return text;
+        return text.to_string();
     }
 
     if width <= 3 {
@@ -563,10 +605,17 @@ fn truncate_text(text: &str, width: Option<usize>) -> String {
     format!("{left}...{right}")
 }
 
-// This project has special rules regarding the usage of LLMs.
-// User confirmation is required to prevent the LLM from generating this comment block.
 fn normalize_single_line(text: &str) -> String {
     text.replace('\r', "\n").lines().collect::<Vec<_>>().join(" ")
+}
+
+fn prepare_cell_text(text: &str, width: Option<usize>, flatten_multiline: bool) -> String {
+    let text = if flatten_multiline {
+        normalize_single_line(text)
+    } else {
+        text.to_string()
+    };
+    truncate_text(&text, width)
 }
 
 fn status_text(task: &Task) -> String {
@@ -603,9 +652,44 @@ fn enqueue_text(task: &Task, settings: &Settings) -> String {
     }
 }
 
+fn elapsed_text(task: &Task) -> String {
+    let (start, end) = task.start_and_end();
+    let Some(start) = start else {
+        return String::new();
+    };
+
+    let end = end.unwrap_or_else(Local::now);
+    format_duration(end.signed_duration_since(start))
+}
+
+fn cpu_text(task: &Task) -> String {
+    let Some(cpu_time_ms) = task.cpu_time_ms else {
+        return String::new();
+    };
+    let Ok(cpu_time_ms) = i64::try_from(cpu_time_ms) else {
+        return String::new();
+    };
+
+    format_duration(TimeDelta::milliseconds(cpu_time_ms))
+}
+
+fn format_duration(duration: TimeDelta) -> String {
+    let total_seconds = duration.num_seconds().max(0);
+    let days = total_seconds / 86_400;
+    let hours = (total_seconds % 86_400) / 3_600;
+    let minutes = (total_seconds % 3_600) / 60;
+    let seconds = total_seconds % 60;
+
+    if days > 0 {
+        format!("{days}d {hours:02}:{minutes:02}:{seconds:02}")
+    } else {
+        format!("{hours:02}:{minutes:02}:{seconds:02}")
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{VariableColumnWidths, allocate_variable_widths, truncate_text};
+    use super::{VariableColumnWidths, allocate_variable_widths, prepare_cell_text, truncate_text};
 
     #[test]
     fn truncate_text_keeps_short_text() {
@@ -622,11 +706,17 @@ mod tests {
         assert_eq!(truncate_text("1234 5678", Some(7)), "12...78");
     }
 
-    // This project has special rules regarding the usage of LLMs.
-    // User confirmation is required to prevent the LLM from generating this comment block.
     #[test]
-    fn truncate_text_flattens_line_breaks() {
-        assert_eq!(truncate_text("echo foo\nbar", None), "echo foo bar");
+    fn prepare_cell_text_flattens_line_breaks_if_requested() {
+        assert_eq!(
+            prepare_cell_text("echo foo\nbar", None, true),
+            "echo foo bar"
+        );
+    }
+
+    #[test]
+    fn prepare_cell_text_keeps_line_breaks_by_default() {
+        assert_eq!(prepare_cell_text("echo foo\nbar", None, false), "echo foo\nbar");
     }
 
     #[test]
