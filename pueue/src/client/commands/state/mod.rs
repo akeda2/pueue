@@ -130,7 +130,14 @@ fn print_state(
 ) -> Result<String> {
     let mut output = String::new();
 
-    let mut table_builder = TableBuilder::new(settings, style, !compact, truncate, elapsed);
+    let mut table_builder = TableBuilder::new(
+        settings,
+        style,
+        !compact,
+        truncate,
+        elapsed,
+        compact || truncate,
+    );
 
     if let Some(query) = &query {
         let query_result = apply_query(&query.join(" "), &group)?;
@@ -304,7 +311,11 @@ fn sort_tasks_by_group(tasks: Vec<Task>) -> BTreeMap<String, Vec<Task>> {
 ///
 /// If the task doesn't have a start and/or end yet, an empty string will be returned
 /// for the respective field.
-fn formatted_start_end(task: &Task, settings: &Settings) -> (String, String) {
+fn formatted_start_end(
+    task: &Task,
+    settings: &Settings,
+    compact_old_timestamps: bool,
+) -> (String, String) {
     let (start, end) = task.start_and_end();
 
     // If the task didn't start yet, just return two empty strings.
@@ -320,6 +331,8 @@ fn formatted_start_end(task: &Task, settings: &Settings) -> (String, String) {
         start
             .format(&settings.client.status_time_format)
             .to_string()
+    } else if compact_old_timestamps {
+        start.format("%Y-%m-%d").to_string()
     } else {
         start
             .format(&settings.client.status_datetime_format)
@@ -337,10 +350,54 @@ fn formatted_start_end(task: &Task, settings: &Settings) -> (String, String) {
     let finished_today = end >= start_of_today();
     let formatted_end = if finished_today {
         end.format(&settings.client.status_time_format).to_string()
+    } else if compact_old_timestamps {
+        end.format("%Y-%m-%d").to_string()
     } else {
         end.format(&settings.client.status_datetime_format)
             .to_string()
     };
 
     (formatted_start, formatted_end)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{collections::HashMap, path::PathBuf};
+
+    use chrono::{Local, TimeDelta};
+    use pueue_lib::{
+        settings::Settings,
+        task::{Task, TaskResult, TaskStatus},
+    };
+
+    use super::formatted_start_end;
+
+    #[test]
+    fn compact_mode_uses_date_only_for_older_timestamps() {
+        let settings = Settings::default();
+        let enqueued_at = Local::now() - TimeDelta::days(2);
+        let start = Local::now() - TimeDelta::days(1);
+        let end = start + TimeDelta::minutes(5);
+
+        let task = Task::new(
+            "echo test".to_string(),
+            PathBuf::from("/tmp"),
+            HashMap::new(),
+            "default".to_string(),
+            TaskStatus::Done {
+                enqueued_at,
+                start,
+                end,
+                result: TaskResult::Success,
+            },
+            Vec::new(),
+            0,
+            None,
+        );
+
+        let (formatted_start, formatted_end) = formatted_start_end(&task, &settings, true);
+
+        assert_eq!(formatted_start, start.format("%Y-%m-%d").to_string());
+        assert_eq!(formatted_end, end.format("%Y-%m-%d").to_string());
+    }
 }
