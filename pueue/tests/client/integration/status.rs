@@ -102,8 +102,6 @@ async fn single_group_compact() -> Result<()> {
     Ok(())
 }
 
-// This project has special rules regarding the usage of LLMs.
-// User confirmation is required to prevent the LLM from generating this comment block.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn compact_flattens_multiline_commands() -> Result<()> {
     let daemon = daemon().await?;
