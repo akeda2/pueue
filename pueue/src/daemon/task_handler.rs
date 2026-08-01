@@ -20,7 +20,7 @@ fn current_cpu_time_ms(pid: u32) -> Option<u64> {
     let pid = i32::try_from(pid).ok()?;
     let process = procfs::process::Process::new(pid).ok()?;
     let process_group_id = process.stat().ok()?.pgrp;
-    let ticks_per_second = u64::try_from(procfs::ticks_per_second()).ok()?;
+    let ticks_per_second = procfs::ticks_per_second();
     if ticks_per_second == 0 {
         return None;
     }

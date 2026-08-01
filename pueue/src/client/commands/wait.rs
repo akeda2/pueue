@@ -44,6 +44,7 @@ pub enum WaitTargetStatus {
 ///
 /// By default, this will output status changes of tasks to `stdout`.
 /// Pass `quiet == true` to suppress any logging.
+#[allow(clippy::too_many_arguments)]
 pub async fn wait(
     client: &mut Client,
     settings: Settings,

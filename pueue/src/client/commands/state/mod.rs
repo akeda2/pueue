@@ -27,6 +27,7 @@ use query::apply_query;
 use table_builder::TableBuilder;
 
 /// Simply request and print the state.
+#[allow(clippy::too_many_arguments)]
 pub async fn state(
     client: &mut Client,
     settings: Settings,
@@ -84,7 +85,7 @@ pub async fn state(
             )?;
 
             // Clear screen and move cursor to top-left before printing the next snapshot.
-            print!("\x1b[2J\x1b[H{output}\n");
+            println!("\x1b[2J\x1b[H{output}");
             io::stdout().flush()?;
 
             sleep(Duration::from_secs(seconds)).await;
@@ -116,6 +117,7 @@ pub async fn state(
 ///
 /// We pass the tasks as a separate parameter and as a list.
 /// This allows us to print the tasks in the order passed to the `format-status` subcommand.
+#[allow(clippy::too_many_arguments)]
 fn print_state(
     mut state: State,
     mut tasks: Vec<Task>,
@@ -327,12 +329,16 @@ fn formatted_start_end(
     let format_timestamp = |timestamp: DateTime<Local>| -> String {
         if compact_old_timestamps {
             if timestamp >= last_24h {
-                timestamp.format(&settings.client.status_time_format).to_string()
+                timestamp
+                    .format(&settings.client.status_time_format)
+                    .to_string()
             } else {
                 timestamp.format("%Y-%m-%d").to_string()
             }
         } else if timestamp >= start_of_today() {
-            timestamp.format(&settings.client.status_time_format).to_string()
+            timestamp
+                .format(&settings.client.status_time_format)
+                .to_string()
         } else {
             timestamp
                 .format(&settings.client.status_datetime_format)
@@ -429,7 +435,9 @@ mod tests {
 
         assert_eq!(
             formatted_start,
-            start.format(&settings.client.status_time_format).to_string()
+            start
+                .format(&settings.client.status_time_format)
+                .to_string()
         );
         assert_eq!(
             formatted_end,
