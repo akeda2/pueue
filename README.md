@@ -1,3 +1,14 @@
+This is a lightly modyfied fork of https://github.com/Nukesor/pueue. The changes mostly lies in the `status` command. It is strongly recommended to use the original, as this fork is highly unofficial.
+
+Added for `pueue status`:
+```
+  -c, --compact            Show status output without horizontal row separators
+  -t, --truncate           Truncate command and path columns to fit into the current terminal width
+  -e, --elapsed            Show elapsed and CPU time instead of start and end timestamps
+  -w, --watch [<SECONDS>]  Re-run and redraw the status output every N seconds
+```
+The 'Status' field is also slightly altered, with yellow colour for running jobs.
+
 # Pueue
 
 [![Test Build](https://github.com/Nukesor/pueue/actions/workflows/test.yml/badge.svg)](https://github.com/Nukesor/pueue/actions/workflows/test.yml)
