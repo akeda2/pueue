@@ -109,7 +109,10 @@ async fn compact_flattens_multiline_commands() -> Result<()> {
 
     run_client_command(shared, &["add", "--stashed", "echo first\nsecond"])?;
 
-    let output = run_client_command(shared, &["status", "--compact", "columns=id,status,command"])?;
+    let output = run_client_command(
+        shared,
+        &["status", "--compact", "columns=id,status,command"],
+    )?;
     let stdout = String::from_utf8(output.stdout)?;
 
     assert!(stdout.contains("echo first second"));
@@ -195,11 +198,13 @@ async fn cpu_time_is_recorded_for_process_group_workload() -> Result<()> {
     let daemon = daemon().await?;
     let shared = &daemon.settings.shared;
 
-    assert_success(add_task(
-        shared,
-        "yes > /dev/null & pid=$!; sleep 1; kill $pid; wait $pid || true",
-    )
-    .await?);
+    assert_success(
+        add_task(
+            shared,
+            "yes > /dev/null & pid=$!; sleep 1; kill $pid; wait $pid || true",
+        )
+        .await?,
+    );
     wait_for_task_condition(shared, 0, Task::is_done).await?;
 
     let state = get_state(shared).await?;

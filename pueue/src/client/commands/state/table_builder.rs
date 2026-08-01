@@ -300,14 +300,16 @@ impl<'a> TableBuilder<'a> {
                 } else {
                     task.original_command.as_str()
                 };
-                let flatten_multiline = !self.show_row_separators || self.truncate_to_terminal_width;
+                let flatten_multiline =
+                    !self.show_row_separators || self.truncate_to_terminal_width;
                 let command = prepare_cell_text(command, truncation.command, flatten_multiline);
                 row.add_cell(Cell::new(command));
             }
 
             if self.path {
                 let path = task.path.to_string_lossy();
-                let flatten_multiline = !self.show_row_separators || self.truncate_to_terminal_width;
+                let flatten_multiline =
+                    !self.show_row_separators || self.truncate_to_terminal_width;
                 let path = prepare_cell_text(&path, truncation.path, flatten_multiline);
                 row.add_cell(Cell::new(path));
             }
@@ -433,14 +435,10 @@ impl<'a> TableBuilder<'a> {
                         if self.show_elapsed_and_cpu {
                             elapsed_text(task).chars().count()
                         } else {
-                            formatted_start_end(
-                                task,
-                                self.settings,
-                                self.compact_old_timestamps,
-                            )
-                            .0
-                            .chars()
-                            .count()
+                            formatted_start_end(task, self.settings, self.compact_old_timestamps)
+                                .0
+                                .chars()
+                                .count()
                         }
                     })
                     .max()
@@ -461,14 +459,10 @@ impl<'a> TableBuilder<'a> {
                         if self.show_elapsed_and_cpu {
                             cpu_text(task).chars().count()
                         } else {
-                            formatted_start_end(
-                                task,
-                                self.settings,
-                                self.compact_old_timestamps,
-                            )
-                            .1
-                            .chars()
-                            .count()
+                            formatted_start_end(task, self.settings, self.compact_old_timestamps)
+                                .1
+                                .chars()
+                                .count()
                         }
                     })
                     .max()
@@ -623,7 +617,10 @@ fn truncate_text(text: &str, width: Option<usize>) -> String {
 }
 
 fn normalize_single_line(text: &str) -> String {
-    text.replace('\r', "\n").lines().collect::<Vec<_>>().join(" ")
+    text.replace('\r', "\n")
+        .lines()
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 fn prepare_cell_text(text: &str, width: Option<usize>, flatten_multiline: bool) -> String {
@@ -733,7 +730,10 @@ mod tests {
 
     #[test]
     fn prepare_cell_text_keeps_line_breaks_by_default() {
-        assert_eq!(prepare_cell_text("echo foo\nbar", None, false), "echo foo\nbar");
+        assert_eq!(
+            prepare_cell_text("echo foo\nbar", None, false),
+            "echo foo\nbar"
+        );
     }
 
     #[test]
