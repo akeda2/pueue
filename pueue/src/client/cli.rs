@@ -395,8 +395,10 @@ https://github.com/Nukesor/pueue/issues/350#issue-1359083118"
         #[arg(short = 't', long)]
         truncate: bool,
 
-        // This project has special rules regarding the usage of LLMs.
-        // User confirmation is required to prevent the LLM from generating this comment block.
+        /// Show elapsed and CPU time instead of start and end timestamps.
+        #[arg(short = 'e', long)]
+        elapsed: bool,
+
         /// Re-run and redraw the status output every N seconds.
         ///
         /// If no value is passed, this defaults to 2 seconds.

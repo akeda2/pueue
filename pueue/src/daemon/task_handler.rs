@@ -15,6 +15,60 @@ use crate::{
     ok_or_shutdown,
 };
 
+#[cfg(target_os = "linux")]
+fn current_cpu_time_ms(pid: u32) -> Option<u64> {
+    let pid = i32::try_from(pid).ok()?;
+    let process = procfs::process::Process::new(pid).ok()?;
+    let process_group_id = process.stat().ok()?.pgrp;
+    let ticks_per_second = procfs::ticks_per_second();
+    if ticks_per_second == 0 {
+        return None;
+    }
+
+    let mut ticks: u64 = 0;
+    for process in procfs::process::all_processes().ok()? {
+        let Ok(process) = process else {
+            continue;
+        };
+        let Ok(stat) = process.stat() else {
+            continue;
+        };
+        if stat.pgrp == process_group_id {
+            ticks = ticks.saturating_add(stat.utime.saturating_add(stat.stime));
+        }
+    }
+
+    Some(ticks.saturating_mul(1000) / ticks_per_second)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn current_cpu_time_ms(_pid: u32) -> Option<u64> {
+    None
+}
+
+fn merge_cpu_time_ms(existing: Option<u64>, sampled: u64) -> u64 {
+    existing.map_or(sampled, |existing| existing.max(sampled))
+}
+
+fn refresh_task_cpu_times(state: &mut LockedState) {
+    let mut updates = Vec::new();
+
+    for children in state.children.0.values() {
+        for (task_id, child) in children.values() {
+            let Some(cpu_time_ms) = current_cpu_time_ms(child.id()) else {
+                continue;
+            };
+            updates.push((*task_id, cpu_time_ms));
+        }
+    }
+
+    for (task_id, cpu_time_ms) in updates {
+        if let Some(task) = state.tasks_mut().get_mut(&task_id) {
+            task.cpu_time_ms = Some(merge_cpu_time_ms(task.cpu_time_ms, cpu_time_ms));
+        }
+    }
+}
+
 /// Main task handling loop.
 /// In here a few things happen:
 ///
@@ -44,6 +98,7 @@ pub async fn run(state: SharedState, settings: Settings) -> Result<()> {
 
             check_callbacks(&mut state);
             handle_finished_tasks(&settings, &mut state);
+            refresh_task_cpu_times(&mut state);
 
             // Check if we're in shutdown.
             // If all tasks are killed, we do some cleanup and exit.
@@ -204,9 +259,30 @@ fn check_failed_dependencies(settings: &Settings, state: &mut LockedState) {
                 end: Local::now(),
                 result: TaskResult::DependencyFailed,
             };
+            task.cpu_time_ms = None;
             task.clone()
         };
 
         spawn_callback(settings, state, &task);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::merge_cpu_time_ms;
+
+    #[test]
+    fn merge_cpu_time_keeps_existing_when_sampled_is_lower() {
+        assert_eq!(merge_cpu_time_ms(Some(1200), 200), 1200);
+    }
+
+    #[test]
+    fn merge_cpu_time_uses_sampled_when_higher() {
+        assert_eq!(merge_cpu_time_ms(Some(1200), 1500), 1500);
+    }
+
+    #[test]
+    fn merge_cpu_time_initializes_when_missing() {
+        assert_eq!(merge_cpu_time_ms(None, 300), 300);
     }
 }

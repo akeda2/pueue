@@ -65,6 +65,8 @@ pub struct Task {
     pub dependencies: Vec<usize>,
     pub priority: i32,
     pub label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cpu_time_ms: Option<u64>,
     pub status: TaskStatus,
 }
 
@@ -91,6 +93,7 @@ impl Task {
             dependencies,
             priority,
             label,
+            cpu_time_ms: None,
             status: starting_status.clone(),
         }
     }
@@ -166,6 +169,7 @@ impl std::fmt::Debug for Task {
             .field("group", &self.group)
             .field("dependencies", &self.dependencies)
             .field("label", &self.label)
+            .field("cpu_time_ms", &self.cpu_time_ms)
             .field("status", &self.status)
             .field("priority", &self.priority)
             .finish()

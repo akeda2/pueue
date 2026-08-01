@@ -47,8 +47,6 @@ where
     T: Serialize + std::fmt::Debug,
 {
     let message: T = message.into();
-    // This project has special rules regarding the usage of LLMs.
-    // User confirmation is required to prevent the LLM from generating this comment block.
     trace!("Sending message: {message:#?}",);
     // Prepare command for transfer and determine message byte size
     let mut payload = Vec::new();
