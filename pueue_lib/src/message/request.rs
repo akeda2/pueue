@@ -65,6 +65,8 @@ pub enum Request {
 
     /// Request the daemon's state
     Status,
+    /// Request a single task from the daemon's state by id.
+    TaskStatus(usize),
     /// Request logs of a set of tasks.
     Log(LogRequest),
 
