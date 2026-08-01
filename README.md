@@ -7,7 +7,9 @@ Added for `pueue status`:
 -e, --elapsed            Show elapsed and CPU time instead of start and end timestamps
 -w, --watch [<SECONDS>]  Re-run and redraw the status output every N seconds
 ```
-The 'Status' field is also slightly altered, with yellow colour for running jobs.
+- The 'Status' field is also slightly altered, with yellow colour for running jobs.
+- A simple installer (`inst.sh') is included, with some optons. See `inst.sh -h`.
+- Configuration file for integration with gfff-buildbot (https://github.com/akeda2/gfff) is included.
 
 # Pueue
 
