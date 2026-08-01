@@ -2,10 +2,10 @@ This is a lightly modyfied fork of https://github.com/Nukesor/pueue. The changes
 
 Added for `pueue status`:
 ```
-  -c, --compact            Show status output without horizontal row separators
-  -t, --truncate           Truncate command and path columns to fit into the current terminal width
-  -e, --elapsed            Show elapsed and CPU time instead of start and end timestamps
-  -w, --watch [<SECONDS>]  Re-run and redraw the status output every N seconds
+-c, --compact            Show status output without horizontal row separators
+-t, --truncate           Truncate command and path columns to fit into the current terminal width
+-e, --elapsed            Show elapsed and CPU time instead of start and end timestamps
+-w, --watch [<SECONDS>]  Re-run and redraw the status output every N seconds
 ```
 The 'Status' field is also slightly altered, with yellow colour for running jobs.
 
