@@ -64,7 +64,7 @@ pub async fn get_task(shared: &Shared, task_id: usize) -> Result<Task> {
     let state = get_state(shared).await?;
     let task = state
         .tasks
-        .get(&0)
+        .get(&task_id)
         .ok_or_else(|| eyre!("Couldn't find task {task_id}"))?;
 
     Ok(task.clone())

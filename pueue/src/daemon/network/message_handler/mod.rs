@@ -79,6 +79,7 @@ pub async fn handle_request(
         Request::Stash(message) => stash::stash(settings, state, message),
         Request::Switch(message) => switch::switch(settings, state, message),
         Request::Status => get_status(state),
+        Request::TaskStatus(task_id) => get_task_status(state, task_id),
     };
 
     send_response(response, stream).await?;
@@ -91,6 +92,11 @@ pub async fn handle_request(
 fn get_status(state: &SharedState) -> Response {
     let state = state.lock().unwrap().clone();
     Response::Status(Box::new(state.inner))
+}
+
+fn get_task_status(state: &SharedState, task_id: usize) -> Response {
+    let state = state.lock().unwrap();
+    Response::TaskStatus(state.inner.tasks.get(&task_id).cloned())
 }
 
 fn ok_or_failure_message<T, E: Display>(result: Result<T, E>) -> Result<T, Response> {
