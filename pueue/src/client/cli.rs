@@ -412,6 +412,19 @@ https://github.com/Nukesor/pueue/issues/350#issue-1359083118"
         )]
         watch: Option<u64>,
 
+        /// Only show the last N entries.
+        ///
+        /// If no value is passed, this defaults to 5.
+        #[arg(
+            short = 'T',
+            long,
+            default_missing_value = "5",
+            num_args = 0..=1,
+            value_parser = clap::value_parser!(u64).range(1..),
+            value_name = "COUNT"
+        )]
+        tail: Option<u64>,
+
         #[arg(short, long)]
         /// Only show tasks of a specific group
         group: Option<String>,
@@ -504,6 +517,32 @@ https://github.com/Nukesor/pueue/issues/350#issue-1359083118"
         /// Only clean tasks of a specific group
         #[arg(short, long)]
         group: Option<String>,
+
+        /// Only clean tasks that have finished longer than this many hours ago.
+        ///
+        /// Passing `-o`/`--older-than` without a value defaults to 24 hours.
+        #[arg(
+            short = 'o',
+            long = "older-than",
+            default_missing_value = "24",
+            num_args = 0..=1,
+            value_parser = clap::value_parser!(u64).range(1..),
+            value_name = "HOURS"
+        )]
+        older_than: Option<u64>,
+
+        /// Keep only the last N finished entries and remove older ones.
+        ///
+        /// If no value is passed, this defaults to 5.
+        #[arg(
+            short = 't',
+            long,
+            default_missing_value = "5",
+            num_args = 0..=1,
+            value_parser = clap::value_parser!(u64).range(1..),
+            value_name = "COUNT"
+        )]
+        tail: Option<u64>,
     },
 
     /// Kill all tasks, clean up afterwards and reset EVERYTHING!
@@ -659,4 +698,45 @@ fn parse_delay_until(src: &str) -> Result<DateTime<Local>, String> {
     Err(String::from(
         "could not parse as seconds or date expression",
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn status_tail_uses_default_when_no_value_is_given() {
+        let args = CliArguments::parse_from(["pueue", "status", "--tail"]);
+        assert!(matches!(
+            args.cmd,
+            Some(SubCommand::Status { tail: Some(5), .. })
+        ));
+    }
+
+    #[test]
+    fn status_tail_parses_explicit_value() {
+        let args = CliArguments::parse_from(["pueue", "status", "-T", "7"]);
+        assert!(matches!(
+            args.cmd,
+            Some(SubCommand::Status { tail: Some(7), .. })
+        ));
+    }
+
+    #[test]
+    fn clean_tail_uses_default_when_no_value_is_given() {
+        let args = CliArguments::parse_from(["pueue", "clean", "--tail"]);
+        assert!(matches!(
+            args.cmd,
+            Some(SubCommand::Clean { tail: Some(5), .. })
+        ));
+    }
+
+    #[test]
+    fn clear_alias_tail_parses_explicit_value() {
+        let args = CliArguments::parse_from(["pueue", "clear", "-t", "3"]);
+        assert!(matches!(
+            args.cmd,
+            Some(SubCommand::Clean { tail: Some(3), .. })
+        ));
+    }
 }

@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Fix
 
+- Add `--older-than` / `-o` to `pueue clean` to clean only finished tasks older than the provided hour threshold. Passing the flag without a value defaults to 24 hours.
+- Add `--tail` defaults to `5` for `pueue status` (`-T`) and `pueue clear`/`clean` (`-t`) to keep or show only the last entries.
+
 ## \[4.0.4\] - 2026-03-02
 
 ### Fix

@@ -192,6 +192,48 @@ async fn elapsed_and_cpu_columns() -> Result<()> {
     Ok(())
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn tail_limits_status_json_output() -> Result<()> {
+    let daemon = daemon().await?;
+    let shared = &daemon.settings.shared;
+
+    for _ in 0..8 {
+        run_client_command(shared, &["add", "--stashed", "ls"])?;
+    }
+
+    let output = run_client_command(shared, &["status", "--json", "--tail", "3"])?;
+
+    let json = String::from_utf8_lossy(&output.stdout);
+    let deserialized_state: State =
+        serde_json::from_str(&json).context("Failed to deserialize json state")?;
+
+    let ids: Vec<usize> = deserialized_state.tasks.keys().copied().collect();
+    assert_eq!(ids, vec![5, 6, 7]);
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn tail_overrides_query_limit() -> Result<()> {
+    let daemon = daemon().await?;
+    let shared = &daemon.settings.shared;
+
+    for _ in 0..8 {
+        run_client_command(shared, &["add", "--stashed", "ls"])?;
+    }
+
+    let output = run_client_command(shared, &["status", "--json", "--tail", "2", "first", "6"])?;
+
+    let json = String::from_utf8_lossy(&output.stdout);
+    let deserialized_state: State =
+        serde_json::from_str(&json).context("Failed to deserialize json state")?;
+
+    let ids: Vec<usize> = deserialized_state.tasks.keys().copied().collect();
+    assert_eq!(ids, vec![6, 7]);
+
+    Ok(())
+}
+
 #[cfg(target_os = "linux")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn cpu_time_is_recorded_for_process_group_workload() -> Result<()> {
