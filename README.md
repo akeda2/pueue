@@ -1,4 +1,4 @@
-This is a lightly modyfied fork of https://github.com/Nukesor/pueue. The changes mostly lies in the `status` command. It is strongly recommended to use the original, as this fork is highly unofficial.
+This is a lightly modyfied fork of https://github.com/Nukesor/pueue. The changes mostly lies in the `status` and `clear` command. It is strongly recommended to use the original, as this fork is highly unofficial.
 
 Added for `pueue status`:
 ```
@@ -6,6 +6,12 @@ Added for `pueue status`:
 -t, --truncate           Truncate command and path columns to fit into the current terminal width
 -e, --elapsed            Show elapsed and CPU time instead of start and end timestamps
 -w, --watch [<SECONDS>]  Re-run and redraw the status output every N seconds
+-T, --tail [<COUNT>]     Only show the last N entries
+```
+Added for `pueue clear`:
+```
+-o, --older-than [<HOURS>]  Only clean tasks that have finished longer than this many hours ago
+-t, --tail [<COUNT>]        Keep only the last N finished entries and remove older ones
 ```
 - The 'Status' field is also slightly altered, with yellow colour for running jobs.
 - A simple installer (`inst.sh`) is included, with some optons. See `inst.sh -h`.
