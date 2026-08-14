@@ -207,7 +207,8 @@ pub async fn handle_command(
         SubCommand::Clean {
             successful_only,
             group,
-        } => clean(client, style, group, successful_only).await,
+            older_than,
+        } => clean(client, style, group, successful_only, older_than).await,
         SubCommand::Edit { task_ids } => edit(client, settings, style, task_ids).await,
         SubCommand::Enqueue {
             task_ids,

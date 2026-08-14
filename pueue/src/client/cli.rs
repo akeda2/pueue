@@ -504,6 +504,19 @@ https://github.com/Nukesor/pueue/issues/350#issue-1359083118"
         /// Only clean tasks of a specific group
         #[arg(short, long)]
         group: Option<String>,
+
+        /// Only clean tasks that have finished longer than this many hours ago.
+        ///
+        /// Passing `-o`/`--older-than` without a value defaults to 24 hours.
+        #[arg(
+            short = 'o',
+            long = "older-than",
+            default_missing_value = "24",
+            num_args = 0..=1,
+            value_parser = clap::value_parser!(u64).range(1..),
+            value_name = "HOURS"
+        )]
+        older_than: Option<u64>,
     },
 
     /// Kill all tasks, clean up afterwards and reset EVERYTHING!
