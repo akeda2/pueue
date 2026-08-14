@@ -69,6 +69,7 @@ async fn main() -> Result<()> {
         truncate: false,
         elapsed: false,
         watch: None,
+        tail: None,
         group: None,
         query: Vec::new(),
     });

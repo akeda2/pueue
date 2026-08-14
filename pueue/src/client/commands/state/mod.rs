@@ -38,6 +38,7 @@ pub async fn state(
     truncate: bool,
     elapsed: bool,
     watch: Option<u64>,
+    tail: Option<u64>,
     group: Option<String>,
 ) -> Result<()> {
     if let Some(seconds) = watch {
@@ -80,6 +81,7 @@ pub async fn state(
                 compact,
                 truncate,
                 elapsed,
+                tail,
                 group.clone(),
                 Some(query.clone()),
             )?;
@@ -104,6 +106,7 @@ pub async fn state(
         compact,
         truncate,
         elapsed,
+        tail,
         group,
         Some(query),
     )?;
@@ -127,6 +130,7 @@ fn print_state(
     compact: bool,
     truncate: bool,
     elapsed: bool,
+    tail: Option<u64>,
     group: Option<String>,
     query: Option<Vec<String>>,
 ) -> Result<String> {
@@ -142,7 +146,11 @@ fn print_state(
     );
 
     if let Some(query) = &query {
-        let query_result = apply_query(&query.join(" "), &group)?;
+        let mut query_result = apply_query(&query.join(" "), &group)?;
+        if let Some(tail) = tail {
+            let tail = usize::try_from(tail).context("`tail` value is too large.")?;
+            query_result.set_tail_limit(tail);
+        }
         table_builder.set_visibility_by_rules(&query_result.selected_columns);
         tasks = query_result.apply_filters(tasks);
         tasks = query_result.order_tasks(tasks);

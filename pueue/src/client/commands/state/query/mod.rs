@@ -151,6 +151,11 @@ impl QueryResult {
             Limit::Last => tasks[(tasks.len() - count)..].to_vec(),
         }
     }
+
+    /// Override any query-provided limit with a `last N` tail limit.
+    pub fn set_tail_limit(&mut self, count: usize) {
+        self.limit = Some((Limit::Last, count));
+    }
 }
 
 /// Take a given `pueue status QUERY` and apply it to all components that're involved in the

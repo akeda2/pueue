@@ -208,7 +208,8 @@ pub async fn handle_command(
             successful_only,
             group,
             older_than,
-        } => clean(client, style, group, successful_only, older_than).await,
+            tail,
+        } => clean(client, style, group, successful_only, older_than, tail).await,
         SubCommand::Edit { task_ids } => edit(client, settings, style, task_ids).await,
         SubCommand::Enqueue {
             task_ids,
@@ -296,10 +297,12 @@ pub async fn handle_command(
             truncate,
             elapsed,
             watch,
+            tail,
             group,
         } => {
             state(
-                client, settings, style, query, json, compact, truncate, elapsed, watch, group,
+                client, settings, style, query, json, compact, truncate, elapsed, watch, tail,
+                group,
             )
             .await
         }

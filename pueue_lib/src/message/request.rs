@@ -263,6 +263,8 @@ pub struct CleanRequest {
     pub group: Option<String>,
 
     pub older_than: Option<u64>,
+
+    pub tail: Option<u64>,
 }
 impl_into_request!(CleanRequest, Request::Clean);
 

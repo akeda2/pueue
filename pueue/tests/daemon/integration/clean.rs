@@ -20,6 +20,7 @@ async fn test_normal_clean() -> Result<()> {
         successful_only: false,
         group: None,
         older_than: None,
+        tail: None,
     };
     send_request(shared, clean_message).await?;
 
@@ -49,6 +50,7 @@ async fn test_successful_only_clean() -> Result<()> {
         successful_only: true,
         group: None,
         older_than: None,
+        tail: None,
     };
     send_request(shared, clean_message).await?;
 
@@ -83,6 +85,7 @@ async fn test_clean_in_selected_group() -> Result<()> {
         successful_only: false,
         group: Some("other".to_string()),
         older_than: None,
+        tail: None,
     };
     send_request(shared, clean_message).await?;
 
@@ -122,6 +125,7 @@ async fn test_clean_successful_only_in_selected_group() -> Result<()> {
         successful_only: true,
         group: Some("other".to_string()),
         older_than: None,
+        tail: None,
     };
     send_request(shared, clean_message).await?;
 
@@ -161,11 +165,43 @@ async fn test_clean_older_than() -> Result<()> {
         successful_only: false,
         group: None,
         older_than: Some(24),
+        tail: None,
     };
     send_request(shared, clean_message).await?;
 
     let state = get_state(shared).await?;
     assert!(state.tasks.contains_key(&0));
+    assert!(state.tasks.contains_key(&1));
+    assert!(state.tasks.contains_key(&2));
+    assert!(state.tasks.contains_key(&3));
+
+    Ok(())
+}
+
+/// Ensure tail filtering keeps the most recent finished entries.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_clean_tail() -> Result<()> {
+    let daemon = daemon().await?;
+    let shared = &daemon.settings.shared;
+
+    // This should result in one failed, one finished, one running and one queued task.
+    for command in &["failing", "ls", "sleep 60", "ls"] {
+        assert_success(add_task(shared, command).await?);
+    }
+    // Wait for task2 to start. This implies that task[0,1] are done.
+    wait_for_task_condition(shared, 2, Task::is_running).await?;
+
+    // Keep the latest finished entry and remove older finished entries.
+    let clean_message = CleanRequest {
+        successful_only: false,
+        group: None,
+        older_than: None,
+        tail: Some(1),
+    };
+    send_request(shared, clean_message).await?;
+
+    let state = get_state(shared).await?;
+    assert!(!state.tasks.contains_key(&0));
     assert!(state.tasks.contains_key(&1));
     assert!(state.tasks.contains_key(&2));
     assert!(state.tasks.contains_key(&3));
