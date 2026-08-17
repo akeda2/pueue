@@ -115,18 +115,14 @@ pub async fn get_state(client: &mut Client) -> Result<State> {
 
 // This is a helper function for easy retrieval of a single task from the daemon state.
 pub async fn get_task(client: &mut Client, task_id: usize) -> Result<Option<Task>> {
-    // Create the message payload and send it to the daemon.
-    client.send_request(Request::Status).await?;
+    client.send_request(Request::TaskStatus(task_id)).await?;
 
-    // Check if we can receive the response from the daemon
     let response = client.receive_response().await?;
 
-    let state = match response {
-        Response::Status(state) => state,
+    match response {
+        Response::TaskStatus(task) => Ok(task),
         _ => unreachable!(),
-    };
-
-    Ok(state.tasks.get(&task_id).cloned())
+    }
 }
 
 /// Recreate the daemon connection and replace the existing client.
