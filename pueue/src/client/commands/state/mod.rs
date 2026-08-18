@@ -317,8 +317,10 @@ fn sort_tasks_by_group(tasks: Vec<Task>) -> BTreeMap<String, Vec<Task>> {
 /// Returns the formatted `start` and `end` text for a given task.
 ///
 /// In compact/truncate mode:
-/// 1. If the timestamp is from the last 24 hours, show only the time.
-/// 2. Otherwise show only the date.
+/// 1. If the timestamp is from today, show only the time.
+/// 2. If the timestamp is from yesterday but still within the last 24 hours, prefix `+` and show
+///    the time.
+/// 3. Otherwise show only the date.
 ///
 /// In normal mode:
 /// 1. If the timestamp is today, show only the time.
@@ -333,17 +335,23 @@ fn formatted_start_end(
 ) -> (String, String) {
     let now = Local::now();
     let last_24h = now - chrono::TimeDelta::hours(24);
+    let today = start_of_today();
 
     let format_timestamp = |timestamp: DateTime<Local>| -> String {
         if compact_old_timestamps {
             if timestamp >= last_24h {
-                timestamp
+                let formatted = timestamp
                     .format(&settings.client.status_time_format)
-                    .to_string()
+                    .to_string();
+                if timestamp < today {
+                    format!("+{formatted}")
+                } else {
+                    formatted
+                }
             } else {
                 timestamp.format("%Y-%m-%d").to_string()
             }
-        } else if timestamp >= start_of_today() {
+        } else if timestamp >= today {
             timestamp
                 .format(&settings.client.status_time_format)
                 .to_string()
@@ -385,13 +393,13 @@ mod tests {
         task::{Task, TaskResult, TaskStatus},
     };
 
-    use super::formatted_start_end;
+    use super::{formatted_start_end, start_of_today};
 
     #[test]
     fn compact_mode_uses_date_only_for_older_timestamps() {
         let settings = Settings::default();
         let enqueued_at = Local::now() - TimeDelta::days(2);
-        let start = Local::now() - TimeDelta::hours(25);
+        let start = start_of_today() - TimeDelta::hours(25);
         let end = start + TimeDelta::minutes(5);
 
         let task = Task::new(
@@ -417,10 +425,10 @@ mod tests {
     }
 
     #[test]
-    fn compact_mode_uses_time_for_timestamps_within_last_24_hours() {
+    fn compact_mode_uses_plain_time_for_today_timestamps() {
         let settings = Settings::default();
         let enqueued_at = Local::now() - TimeDelta::days(2);
-        let start = Local::now() - TimeDelta::hours(23);
+        let start = start_of_today() + TimeDelta::minutes(1);
         let end = start + TimeDelta::minutes(5);
 
         let task = Task::new(
@@ -450,6 +458,41 @@ mod tests {
         assert_eq!(
             formatted_end,
             end.format(&settings.client.status_time_format).to_string()
+        );
+    }
+
+    #[test]
+    fn compact_mode_prefixes_yesterday_timestamps_within_last_24_hours() {
+        let settings = Settings::default();
+        let enqueued_at = Local::now() - TimeDelta::days(2);
+        let start = start_of_today() - TimeDelta::hours(1);
+        let end = start + TimeDelta::minutes(5);
+
+        let task = Task::new(
+            "echo test".to_string(),
+            PathBuf::from("/tmp"),
+            HashMap::new(),
+            "default".to_string(),
+            TaskStatus::Done {
+                enqueued_at,
+                start,
+                end,
+                result: TaskResult::Success,
+            },
+            Vec::new(),
+            0,
+            None,
+        );
+
+        let (formatted_start, formatted_end) = formatted_start_end(&task, &settings, true);
+
+        assert_eq!(
+            formatted_start,
+            format!("+{}", start.format(&settings.client.status_time_format))
+        );
+        assert_eq!(
+            formatted_end,
+            format!("+{}", end.format(&settings.client.status_time_format))
         );
     }
 }
