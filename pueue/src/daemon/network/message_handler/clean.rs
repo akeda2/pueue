@@ -1,5 +1,5 @@
 use chrono::{Local, TimeDelta};
-use pueue_lib::{TaskResult, TaskStatus, log::clean_log_handles, message::*};
+use pueue_lib::{TaskResult, TaskStatus, log::clean_log_handles};
 
 use super::*;
 use crate::{daemon::internal_state::SharedState, ok_or_save_state_failure};

@@ -58,7 +58,7 @@ pub enum Response {
     Status(Box<State>),
 
     /// The response to [`super::Request::TaskStatus`]
-    TaskStatus(Option<Task>),
+    TaskStatus(Box<Option<Task>>),
 
     /// The log returned from the daemon for a bunch of [`Task`]s
     /// This is the response to [`super::Request::Log`]

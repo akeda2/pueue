@@ -96,7 +96,7 @@ fn get_status(state: &SharedState) -> Response {
 
 fn get_task_status(state: &SharedState, task_id: usize) -> Response {
     let state = state.lock().unwrap();
-    Response::TaskStatus(state.inner.tasks.get(&task_id).cloned())
+    Response::TaskStatus(Box::new(state.inner.tasks.get(&task_id).cloned()))
 }
 
 fn ok_or_failure_message<T, E: Display>(result: Result<T, E>) -> Result<T, Response> {
