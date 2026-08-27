@@ -1,4 +1,4 @@
-Changelog
+# Changelog
 
 All notable changes to this project will be documented in this file.
 
@@ -10,6 +10,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 - Add `--older-than` / `-o` to `pueue clean` to clean only finished tasks older than the provided hour threshold. Passing the flag without a value defaults to 24 hours.
 - Add `--tail` defaults to `5` for `pueue status` (`-T`) and `pueue clear`/`clean` (`-t`) to keep or show only the last entries.
+- Minor bug where the daemon secret and certificate were world readable for a split second during first startup and initialization.
+- Don't log invalid authentication secrets
+- Fix a panic that could happen when an incoming connection was accepted when system time changed.
+- Fix possible DOS attack vector on incomplete TLS handshakes.
+  Clients were only attackable if they ran Pueue in TLS mode on a public IP. Default is localhost and unix sockets.
+- Fix "All queued tasks ... have been stashd" message typo.
 
 ## \[4.0.4\] - 2026-03-02
 
