@@ -120,7 +120,7 @@ pub async fn get_task(client: &mut Client, task_id: usize) -> Result<Option<Task
     let response = client.receive_response().await?;
 
     match response {
-        Response::TaskStatus(task) => Ok(task),
+        Response::TaskStatus(task) => Ok(*task),
         _ => unreachable!(),
     }
 }
