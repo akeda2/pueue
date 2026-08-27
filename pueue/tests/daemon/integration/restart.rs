@@ -61,7 +61,7 @@ async fn test_cannot_restart_running() -> Result<()> {
 
     // Add a long running task that starts immediately.
     assert_success(add_and_start_task(shared, "sleep 60").await?);
-    let task = get_task(shared, 1).await?;
+    let task = get_task(shared, 0).await?;
 
     // Try to restart task 0
     let restart_message = RestartRequest {
